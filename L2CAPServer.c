@@ -545,58 +545,6 @@ static int SetConnect(void)
    return(ret_val);
 }
 
-   /* The following function is responsible for placing the local       */
-   /* Bluetooth device into Pairable mode.  Once in this mode the device*/
-   /* will response to pairing requests from other Bluetooth devices.   */
-   /* This function returns zero on successful execution and a negative */
-   /* value on all errors.                                              */
-static int SetPairable(void)
-{
-   int Result;
-   int ret_val = 0;
-
-   /* First, check that a valid Bluetooth Stack ID exists.              */
-   if(BluetoothStackID)
-   {
-      /* Attempt to set the attached device to be pairable.             */
-      Result = GAP_Set_Pairability_Mode(BluetoothStackID, pmPairableMode);
-
-      /* Next, check the return value of the GAP Set Pairability mode   */
-      /* command for successful execution.                              */
-      if(!Result)
-      {
-         /* The device has been set to pairable mode, now register an   */
-         /* Authentication Callback to handle the Authentication events */
-         /* if required.                                                */
-         Result = GAP_Register_Remote_Authentication(BluetoothStackID, GAP_Event_Callback, (unsigned long)0);
-
-         /* Next, check the return value of the GAP Register Remote     */
-         /* Authentication command for successful execution.            */
-         if(Result)
-         {
-            /* An error occurred while trying to execute this function. */
-            DisplayFunctionError("Auth", Result);
-
-            ret_val = Result;
-         }
-      }
-      else
-      {
-         /* An error occurred while trying to make the device pairable. */
-         DisplayFunctionError("Set Pairability Mode", Result);
-
-         ret_val = Result;
-      }
-   }
-   else
-   {
-      /* No valid Bluetooth Stack ID exists.                            */
-      ret_val = INVALID_STACK_ID_ERROR;
-   }
-
-   return(ret_val);
-}
-
    /* The following function is a utility function that exists to delete*/
    /* the specified Link Key from the Local Bluetooth Device.  If a NULL*/
    /* Bluetooth Device Address is specified, then all Link Keys will be */
@@ -773,352 +721,6 @@ static int SetBaudRate(ParameterList_t *TempParam)
 /*                         Event Callbacks                           */
 /*********************************************************************/
 
-/* The following function is for the GAP Event Receive Data Callback.*/
-/* This function will be called whenever a Callback has been         */
-/* registered for the specified GAP Action that is associated with   */
-/* the Bluetooth Stack.  This function passes to the caller the GAP  */
-/* Event Data of the specified Event and the GAP Event Callback      */
-/* Parameter that was specified when this Callback was installed.    */
-/* The caller is free to use the contents of the GAP Event Data ONLY */
-/* in the context of this callback.  If the caller requires the Data */
-/* for a longer period of time, then the callback function MUST copy */
-/* the data into another Data Buffer.  This function is guaranteed   */
-/* NOT to be invoked more than once simultaneously for the specified */
-/* installed callback (i.e.  this function DOES NOT have be          */
-/* reentrant).  It Needs to be noted however, that if the same       */
-/* Callback is installed more than once, then the callbacks will be  */
-/* called serially.  Because of this, the processing in this function*/
-/* should be as efficient as possible.  It should also be noted that */
-/* this function is called in the Thread Context of a Thread that the*/
-/* User does NOT own.  Therefore, processing in this function should */
-/* be as efficient as possible (this argument holds anyway because   */
-/* other GAP Events will not be processed while this function call is*/
-/* outstanding).                                                     */
-/* * NOTE * This function MUST NOT Block and wait for events that    */
-/*          can only be satisfied by Receiving other GAP Events.  A  */
-/*          Deadlock WILL occur because NO GAP Event Callbacks will  */
-/*          be issued while this function is currently outstanding.  */
-static void BTPSAPI GAP_Event_Callback(unsigned int BluetoothStackID, GAP_Event_Data_t *GAP_Event_Data, unsigned long CallbackParameter)
-{
-int                               Result;
-int                               Index;
-BD_ADDR_t                         NULL_BD_ADDR;
-Boolean_t                         OOB_Data;
-Boolean_t                         MITM;
-GAP_IO_Capability_t               RemoteIOCapability;
-GAP_Inquiry_Event_Data_t         *GAP_Inquiry_Event_Data;
-GAP_Remote_Name_Event_Data_t     *GAP_Remote_Name_Event_Data;
-GAP_Authentication_Information_t  GAP_Authentication_Information;
-
-/* First, check to see if the required parameters appear to be       */
-/* semi-valid.                                                       */
-if((BluetoothStackID) && (GAP_Event_Data))
-{
-   /* The parameters appear to be semi-valid, now check to see what  */
-   /* type the incoming event is.                                    */
-   switch(GAP_Event_Data->Event_Data_Type)
-   {
-      case etInquiry_Result:
-         /* The GAP event received was of type Inquiry_Result.       */
-         GAP_Inquiry_Event_Data = GAP_Event_Data->Event_Data.GAP_Inquiry_Event_Data;
-
-         /* Next, Check to see if the inquiry event data received    */
-         /* appears to be semi-valid.                                */
-         if(GAP_Inquiry_Event_Data)
-         {
-            /* Now, check to see if the gap inquiry event data's     */
-            /* inquiry data appears to be semi-valid.                */
-            if(GAP_Inquiry_Event_Data->GAP_Inquiry_Data)
-            {
-               Display(("\r\n"));
-
-               /* Display a list of all the devices found from       */
-               /* performing the inquiry.                            */
-               for(Index=0;(Index<GAP_Inquiry_Event_Data->Number_Devices) && (Index<MAX_INQUIRY_RESULTS);Index++)
-               {
-                  InquiryResultList[Index] = GAP_Inquiry_Event_Data->GAP_Inquiry_Data[Index].BD_ADDR;
-                  BD_ADDRToStr(GAP_Inquiry_Event_Data->GAP_Inquiry_Data[Index].BD_ADDR, Callback_BoardStr);
-
-                  Display(("Result: %d,%s.\r\n", (Index+1), Callback_BoardStr));
-               }
-
-               NumberofValidResponses = GAP_Inquiry_Event_Data->Number_Devices;
-            }
-         }
-         break;
-      case etInquiry_Entry_Result:
-         /* Next convert the BD_ADDR to a string.                    */
-         BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Inquiry_Entry_Event_Data->BD_ADDR, Callback_BoardStr);
-
-         /* Display this GAP Inquiry Entry Result.                   */
-         Display(("\r\n"));
-         Display(("Inquiry Entry: %s.\r\n", Callback_BoardStr));
-         break;
-      case etAuthentication:
-         /* An authentication event occurred, determine which type of*/
-         /* authentication event occurred.                           */
-         switch(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->GAP_Authentication_Event_Type)
-         {
-            case atLinkKeyRequest:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atLinkKeyRequest: %s\r\n", Callback_BoardStr));
-
-               /* Setup the authentication information response      */
-               /* structure.                                         */
-               GAP_Authentication_Information.GAP_Authentication_Type    = atLinkKey;
-               GAP_Authentication_Information.Authentication_Data_Length = 0;
-
-               /* See if we have stored a Link Key for the specified */
-               /* device.                                            */
-               for(Index=0;Index<(sizeof(LinkKeyInfo)/sizeof(LinkKeyInfo_t));Index++)
-               {
-                  if(COMPARE_BD_ADDR(LinkKeyInfo[Index].BD_ADDR, GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device))
-                  {
-                     /* Link Key information stored, go ahead and    */
-                     /* respond with the stored Link Key.            */
-                     GAP_Authentication_Information.Authentication_Data_Length   = sizeof(Link_Key_t);
-                     GAP_Authentication_Information.Authentication_Data.Link_Key = LinkKeyInfo[Index].LinkKey;
-
-                     break;
-                  }
-               }
-
-               /* Submit the authentication response.                */
-               Result = GAP_Authentication_Response(BluetoothStackID, GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, &GAP_Authentication_Information);
-
-               /* Check the result of the submitted command.         */
-               if(!Result)
-                  DisplayFunctionSuccess("GAP_Authentication_Response");
-               else
-                  DisplayFunctionError("GAP_Authentication_Response", Result);
-               break;
-            case atPINCodeRequest:
-               /* A pin code request event occurred, first display   */
-               /* the BD_ADD of the remote device requesting the pin.*/
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atPINCodeRequest: %s\r\n", Callback_BoardStr));
-
-               /* Note the current Remote BD_ADDR that is requesting */
-               /* the PIN Code.                                      */
-               CurrentRemoteBD_ADDR = GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device;
-
-               /* Inform the user that they will need to respond with*/
-               /* a PIN Code Response.                               */
-               Display(("Respond with: PINCodeResponse\r\n"));
-               break;
-            case atAuthenticationStatus:
-               /* An authentication status event occurred, display   */
-               /* all relevant information.                          */
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atAuthenticationStatus: %d for %s\r\n", GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.Authentication_Status, Callback_BoardStr));
-
-               /* Flag that there is no longer a current             */
-               /* Authentication procedure in progress.              */
-               ASSIGN_BD_ADDR(CurrentRemoteBD_ADDR, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
-               break;
-            case atLinkKeyCreation:
-               /* A link key creation event occurred, first display  */
-               /* the remote device that caused this event.          */
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atLinkKeyCreation: %s\r\n", Callback_BoardStr));
-
-               /* Now store the link Key in either a free location OR*/
-               /* over the old key location.                         */
-               ASSIGN_BD_ADDR(NULL_BD_ADDR, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
-
-               for(Index=0,Result=-1;Index<(sizeof(LinkKeyInfo)/sizeof(LinkKeyInfo_t));Index++)
-               {
-                  if(COMPARE_BD_ADDR(LinkKeyInfo[Index].BD_ADDR, GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device))
-                     break;
-                  else
-                  {
-                     if((Result == (-1)) && (COMPARE_BD_ADDR(LinkKeyInfo[Index].BD_ADDR, NULL_BD_ADDR)))
-                        Result = Index;
-                  }
-               }
-
-               /* If we didn't find a match, see if we found an empty*/
-               /* location.                                          */
-               if(Index == (sizeof(LinkKeyInfo)/sizeof(LinkKeyInfo_t)))
-                  Index = Result;
-
-               /* Check to see if we found a location to store the   */
-               /* Link Key information into.                         */
-               if(Index != (-1))
-               {
-                  LinkKeyInfo[Index].BD_ADDR = GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device;
-                  LinkKeyInfo[Index].LinkKey = GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.Link_Key_Info.Link_Key;
-
-                  Display(("Link Key Stored.\r\n"));
-               }
-               else
-                  Display(("Link Key array full.\r\n"));
-               break;
-            case atIOCapabilityRequest:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atIOCapabilityRequest: %s\r\n", Callback_BoardStr));
-
-               /* Setup the Authentication Information Response      */
-               /* structure.                                         */
-               GAP_Authentication_Information.GAP_Authentication_Type                                      = atIOCapabilities;
-               GAP_Authentication_Information.Authentication_Data_Length                                   = sizeof(GAP_IO_Capabilities_t);
-               GAP_Authentication_Information.Authentication_Data.IO_Capabilities.IO_Capability            = (GAP_IO_Capability_t)IOCapability;
-               GAP_Authentication_Information.Authentication_Data.IO_Capabilities.MITM_Protection_Required = MITMProtection;
-               GAP_Authentication_Information.Authentication_Data.IO_Capabilities.OOB_Data_Present         = OOBSupport;
-
-               /* Submit the Authentication Response.                */
-               Result = GAP_Authentication_Response(BluetoothStackID, GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, &GAP_Authentication_Information);
-
-               /* Check the result of the submitted command.         */
-               /* Check the result of the submitted command.         */
-               if(!Result)
-                  DisplayFunctionSuccess("Auth");
-               else
-                  DisplayFunctionError("Auth", Result);
-               break;
-            case atIOCapabilityResponse:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atIOCapabilityResponse: %s\r\n", Callback_BoardStr));
-
-               RemoteIOCapability = GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.IO_Capabilities.IO_Capability;
-               MITM               = (Boolean_t)GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.IO_Capabilities.MITM_Protection_Required;
-               OOB_Data           = (Boolean_t)GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.IO_Capabilities.OOB_Data_Present;
-
-               Display(("Capabilities: %s%s%s\r\n", IOCapabilitiesStrings[RemoteIOCapability], ((MITM)?", MITM":""), ((OOB_Data)?", OOB Data":"")));
-               break;
-            case atUserConfirmationRequest:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atUserConfirmationRequest: %s\r\n", Callback_BoardStr));
-
-               CurrentRemoteBD_ADDR = GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device;
-
-               if(IOCapability != icDisplayYesNo)
-               {
-                  /* Invoke JUST Works Process...                    */
-                  GAP_Authentication_Information.GAP_Authentication_Type          = atUserConfirmation;
-                  GAP_Authentication_Information.Authentication_Data_Length       = (Byte_t)sizeof(Byte_t);
-                  GAP_Authentication_Information.Authentication_Data.Confirmation = TRUE;
-
-                  /* Submit the Authentication Response.             */
-                  Display(("\r\nAuto Accepting: %l\r\n", GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.Numeric_Value));
-
-                  Result = GAP_Authentication_Response(BluetoothStackID, GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, &GAP_Authentication_Information);
-
-                  if(!Result)
-                     DisplayFunctionSuccess("GAP_Authentication_Response");
-                  else
-                     DisplayFunctionError("GAP_Authentication_Response", Result);
-
-                  /* Flag that there is no longer a current          */
-                  /* Authentication procedure in progress.           */
-                  ASSIGN_BD_ADDR(CurrentRemoteBD_ADDR, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
-               }
-               else
-               {
-                  Display(("User Confirmation: %l\r\n", (unsigned long)GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.Numeric_Value));
-
-                  /* Inform the user that they will need to respond  */
-                  /* with a PIN Code Response.                       */
-                  Display(("Respond with: UserConfirmationResponse\r\n"));
-               }
-               break;
-            case atPasskeyRequest:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atPasskeyRequest: %s\r\n", Callback_BoardStr));
-
-               /* Note the current Remote BD_ADDR that is requesting */
-               /* the Passkey.                                       */
-               CurrentRemoteBD_ADDR = GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device;
-
-               /* Inform the user that they will need to respond with*/
-               /* a Passkey Response.                                */
-               Display(("Respond with: PassKeyResponse\r\n"));
-               break;
-            case atRemoteOutOfBandDataRequest:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atRemoteOutOfBandDataRequest: %s\r\n", Callback_BoardStr));
-
-               /* This application does not support OOB data so      */
-               /* respond with a data length of Zero to force a      */
-               /* negative reply.                                    */
-               GAP_Authentication_Information.GAP_Authentication_Type    = atOutOfBandData;
-               GAP_Authentication_Information.Authentication_Data_Length = 0;
-
-               Result = GAP_Authentication_Response(BluetoothStackID, GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, &GAP_Authentication_Information);
-
-               if(!Result)
-                  DisplayFunctionSuccess("GAP_Authentication_Response");
-               else
-                  DisplayFunctionError("GAP_Authentication_Response", Result);
-               break;
-            case atPasskeyNotification:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atPasskeyNotification: %s\r\n", Callback_BoardStr));
-
-               Display(("Passkey Value: %lu\r\n", GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.Numeric_Value));
-               break;
-            case atKeypressNotification:
-               BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Remote_Device, Callback_BoardStr);
-               Display(("\r\n"));
-               Display(("atKeypressNotification: %s\r\n", Callback_BoardStr));
-
-               Display(("Keypress: %d\r\n", (int)GAP_Event_Data->Event_Data.GAP_Authentication_Event_Data->Authentication_Event_Data.Keypress_Type));
-               break;
-            default:
-               Display(("Un-handled Auth. Event.\r\n"));
-               break;
-         }
-         break;
-      case etRemote_Name_Result:
-         /* Bluetooth Stack has responded to a previously issued     */
-         /* Remote Name Request that was issued.                     */
-         GAP_Remote_Name_Event_Data = GAP_Event_Data->Event_Data.GAP_Remote_Name_Event_Data;
-         if(GAP_Remote_Name_Event_Data)
-         {
-            /* Inform the user of the Result.                        */
-            BD_ADDRToStr(GAP_Remote_Name_Event_Data->Remote_Device, Callback_BoardStr);
-
-            Display(("\r\n"));
-            Display(("BD_ADDR: %s.\r\n", Callback_BoardStr));
-
-            if(GAP_Remote_Name_Event_Data->Remote_Name)
-               Display(("Name: %s.\r\n", GAP_Remote_Name_Event_Data->Remote_Name));
-            else
-               Display(("Name: NULL.\r\n"));
-         }
-         break;
-      case etEncryption_Change_Result:
-         BD_ADDRToStr(GAP_Event_Data->Event_Data.GAP_Encryption_Mode_Event_Data->Remote_Device, Callback_BoardStr);
-         Display(("\r\netEncryption_Change_Result for %s, Status: 0x%02X, Mode: %s.\r\n", Callback_BoardStr,
-                                                                                          GAP_Event_Data->Event_Data.GAP_Encryption_Mode_Event_Data->Encryption_Change_Status,
-                                                                                          ((GAP_Event_Data->Event_Data.GAP_Encryption_Mode_Event_Data->Encryption_Mode == emDisabled)?"Disabled": "Enabled")));
-         break;
-      default:
-         /* An unknown/unexpected GAP event was received.            */
-         Display(("\r\nUnknown Event: %d.\r\n", GAP_Event_Data->Event_Data_Type));
-         break;
-   }
-}
-	else
-	{
-	   /* There was an error with one or more of the input parameters.   */
-	   Display(("\r\n"));
-	   Display(("Null Event\r\n"));
-	}
-
-	DisplayPrompt();
-}
-
 static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Event_Data_t *L2CA_Event_Data, unsigned long CallbackParameter)
 {
 	int retval;
@@ -1285,84 +887,76 @@ static void BTPSAPI HCI_Event_Callback(unsigned int BluetoothStackID, HCI_Event_
    /* negative error code (of the form APPLICATION_ERROR_XXX).          */
 int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initialization_t *BTPS_Initialization)
 {
-   int ret_val = APPLICATION_ERROR_UNABLE_TO_OPEN_STACK;
+	int ret_val = APPLICATION_ERROR_UNABLE_TO_OPEN_STACK;
 
-   /* Initiailize some defaults.                                        */
-   SerialPortID           = 0;
-   UI_Mode                = UI_MODE_SELECT;
-   LoopbackActive         = FALSE;
-   DisplayRawData         = FALSE;
-   AutomaticReadActive    = FALSE;
-   NumberofValidResponses = 0;
+	/* Initiailize some defaults.                                        */
+	SerialPortID           = 0;
+	UI_Mode                = UI_MODE_SELECT;
+	LoopbackActive         = FALSE;
+	DisplayRawData         = FALSE;
+	AutomaticReadActive    = FALSE;
+	NumberofValidResponses = 0;
 
-   /* Next, makes sure that the Driver Information passed appears to be */
-   /* semi-valid.                                                       */
-   if((HCI_DriverInformation) && (BTPS_Initialization))
-   {
-      /* Try to Open the stack and check if it was successful.          */
-      if(!OpenStack(HCI_DriverInformation, BTPS_Initialization))
-      {
-         /* The stack was opened successfully.  Now set some defaults.  */
+	/* Next, makes sure that the Driver Information passed appears to be */
+	/* semi-valid.                                                       */
+	if((HCI_DriverInformation) && (BTPS_Initialization))
+	{
+		/* Try to Open the stack and check if it was successful.          */
+		if(!OpenStack(HCI_DriverInformation, BTPS_Initialization))
+		{
+			/* The stack was opened successfully.  Now set some defaults.  */
 
-         /* First, attempt to set the Device to be Connectable.         */
-         ret_val = SetConnect();
+			/* First, attempt to set the Device to be Connectable.         */
+			ret_val = SetConnect();
 
-         /* Next, check to see if the Device was successfully made      */
-         /* Connectable.                                                */
-         if(!ret_val)
-         {
-            /* Now that the device is Connectable attempt to make it    */
-            /* Discoverable.                                            */
-            ret_val = SetDiscoverable();
+			/* Next, check to see if the Device was successfully made      */
+			/* Connectable.                                                */
+			if(!ret_val)
+			{
+				/* Now that the device is Connectable attempt to make it    */
+				/* Discoverable.                                            */
+				ret_val = SetDiscoverable();
 
-            /* Next, check to see if the Device was successfully made   */
-            /* Discoverable.                                            */
-            if(!ret_val)
-            {
-               /* Now that the device is discoverable attempt to make it*/
-               /* pairable.                                             */
-               /*ret_val = SetPairable();
-               if(!ret_val)
-               {*/
-                  /* Attempt to register a HCI Event Callback.          */
-                  ret_val = HCI_Register_Event_Callback(BluetoothStackID, HCI_Event_Callback, (unsigned long)NULL);
-                  if(ret_val > 0)
-                  {
-                	  SetLocalName("Stone BT");
+				/* Next, check to see if the Device was successfully made   */
+				/* Discoverable.                                            */
+				if(!ret_val)
+				{
+					/* Attempt to register a HCI Event Callback.          */
+					ret_val = HCI_Register_Event_Callback(BluetoothStackID, HCI_Event_Callback, (unsigned long)NULL);
+					if(ret_val > 0)
+					{
+						SetLocalName("Stone BT");
 
-                     // NOW WE SHOULD INITIALIZE ALL L2CAP STUFF
-                     L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
+						// NOW WE SHOULD INITIALIZE ALL L2CAP STUFF
+						L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
 
-                     /* Return success to the caller.                   */
-                     ret_val = (int)BluetoothStackID;
-                  }
-                  else
-                     DisplayFunctionError("HCI_Register_Event_Callback()", ret_val);
-               /*}
-               else
-                  DisplayFunctionError("SetPairable", ret_val);*/
-            }
-            else
-               DisplayFunctionError("SetDisc", ret_val);
-         }
-         else
-            DisplayFunctionError("SetDisc", ret_val);
+						/* Return success to the caller.                   */
+						ret_val = (int)BluetoothStackID;
+					}
+					else
+						DisplayFunctionError("HCI_Register_Event_Callback()", ret_val);
+				}
+				else
+					DisplayFunctionError("SetDisc", ret_val);
+			}
+			else
+				DisplayFunctionError("SetDisc", ret_val);
 
-         /* In some error occurred then close the stack.                */
-         if(ret_val < 0)
-         {
-            /* Close the Bluetooth Stack.                               */
-            CloseStack();
-         }
-      }
-      else
-      {
-         /* There was an error while attempting to open the Stack.      */
-         Display(("Unable to open the stack.\r\n"));
-      }
-   }
-   else
-      ret_val = APPLICATION_ERROR_INVALID_PARAMETERS;
+			/* In some error occurred then close the stack.                */
+			if(ret_val < 0)
+			{
+				/* Close the Bluetooth Stack.                               */
+				CloseStack();
+			}
+		}
+		else
+		{
+			/* There was an error while attempting to open the Stack.      */
+			Display(("Unable to open the stack.\r\n"));
+		}
+	}
+	else
+		ret_val = APPLICATION_ERROR_INVALID_PARAMETERS;
 
-   return(ret_val);
+	return ret_val;
 }
