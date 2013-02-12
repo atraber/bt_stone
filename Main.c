@@ -17,17 +17,7 @@
 #include "EHCILL.h"              /* eHCILL Implementation Header.             */
 
 #include "i2c_lib.h"
-
-#define MAX_COMMAND_LENGTH                         (64)  /* Denotes the max   */
-                                                         /* buffer size used  */
-                                                         /* for user commands */
-                                                         /* input via the     */
-                                                         /* User Interface.   */
-
-#define LED_TOGGLE_RATE_SUCCESS                    (500) /* The LED Toggle    */
-                                                         /* rate when the demo*/
-                                                         /* successfully      */
-                                                         /* starts up.        */
+#include "protocol.h"
 
    /* The following parameters are used when configuring HCILL Mode.    */
 #define HCILL_MODE_INACTIVITY_TIMEOUT              (500)
@@ -125,8 +115,6 @@ static void MainThread(void)
 				BTPS_ExecuteScheduler();
 			}
 		}
-
-
 	}
 }
 

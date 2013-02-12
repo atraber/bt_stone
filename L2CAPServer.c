@@ -10,68 +10,14 @@
 #include <stdio.h>
 #include <string.h>
 
-#define MAX_SUPPORTED_COMMANDS                     (36)  /* Denotes the       */
-                                                         /* maximum number of */
-                                                         /* User Commands that*/
-                                                         /* are supported by  */
-                                                         /* this application. */
-
-#define MAX_NUM_OF_PARAMETERS                       (5)  /* Denotes the max   */
-                                                         /* number of         */
-                                                         /* parameters a      */
-                                                         /* command can have. */
-
-#define MAX_INQUIRY_RESULTS                         (5)  /* Denotes the max   */
-                                                         /* number of inquiry */
-                                                         /* results.          */
 
 #define MAX_SUPPORTED_LINK_KEYS                    (1)   /* Max supported Link*/
                                                          /* keys.             */
-
-#define DEFAULT_IO_CAPABILITY          (icDisplayYesNo)  /* Denotes the       */
-                                                         /* default I/O       */
-                                                         /* Capability that is*/
-                                                         /* used with Secure  */
-                                                         /* Simple Pairing.   */
-
-#define DEFAULT_MITM_PROTECTION                  (TRUE)  /* Denotes the       */
-                                                         /* default value used*/
-                                                         /* for Man in the    */
-                                                         /* Middle (MITM)     */
-                                                         /* protection used   */
-                                                         /* with Secure Simple*/
-                                                         /* Pairing.          */
-
-#define TEST_DATA              "This is a test string."  /* Denotes the data  */
-                                                         /* that is sent via  */
-                                                         /* SPP when calling  */
-                                                         /* SPP_Data_Write(). */
-
-#define NO_COMMAND_ERROR                           (-1)  /* Denotes that no   */
-                                                         /* command was       */
-                                                         /* specified to the  */
-                                                         /* parser.           */
-
-#define INVALID_COMMAND_ERROR                      (-2)  /* Denotes that the  */
-                                                         /* Command does not  */
-                                                         /* exist for         */
-                                                         /* processing.       */
-
-#define EXIT_CODE                                  (-3)  /* Denotes that the  */
-                                                         /* Command specified */
-                                                         /* was the Exit      */
-                                                         /* Command.          */
 
 #define FUNCTION_ERROR                             (-4)  /* Denotes that an   */
                                                          /* error occurred in */
                                                          /* execution of the  */
                                                          /* Command Function. */
-
-#define TO_MANY_PARAMS                             (-5)  /* Denotes that there*/
-                                                         /* are more          */
-                                                         /* parameters then   */
-                                                         /* will fit in the   */
-                                                         /* UserCommand.      */
 
 #define INVALID_PARAMETERS_ERROR                   (-6)  /* Denotes that an   */
                                                          /* error occurred due*/
@@ -95,27 +41,6 @@
                                                          /* Bluetooth Protocol*/
                                                          /* Stack has not been*/
                                                          /* opened.           */
-
-#define UNABLE_TO_REGISTER_SERVER                  (-9)  /* Denotes that an   */
-                                                         /* error occurred    */
-                                                         /* when trying to    */
-                                                         /* create a Serial   */
-                                                         /* Port Server.      */
-
-#define EXIT_MODE                                  (-10) /* Flags exit from   */
-                                                         /* any Mode.         */
-
-   /* The following represent the possible values of UI_Mode variable.  */
-#define UI_MODE_IS_CLIENT      (2)
-#define UI_MODE_IS_SERVER      (1)
-#define UI_MODE_SELECT         (0)
-#define UI_MODE_IS_INVALID     (-1)
-
-   /* Following converts a Sniff Parameter in Milliseconds to frames.   */
-#define MILLISECONDS_TO_BASEBAND_SLOTS(_x)   ((_x) / (0.625))
-
-   /* The following is used as a printf replacement.                    */
-#define Display(_x)                 do { BTPS_OutputMessage _x; } while(0)
 
    /* The following type definition represents the container type which */
    /* holds the mapping between Bluetooth devices (based on the BD_ADDR)*/
@@ -292,32 +217,32 @@ static int OpenStack(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initia
    /* execution and a negative value on all errors.                     */
 static int CloseStack(void)
 {
-   int ret_val = 0;
+	int ret_val = 0;
 
-   /* First check to see if the Stack has been opened.                  */
-   if(BluetoothStackID)
-   {
-      /* Simply close the Stack                                         */
-      BSC_Shutdown(BluetoothStackID);
+	/* First check to see if the Stack has been opened.                  */
+	if(BluetoothStackID)
+	{
+		/* Simply close the Stack                                         */
+		BSC_Shutdown(BluetoothStackID);
 
-      /* Free BTPSKRNL allocated memory.                                */
-      BTPS_DeInit();
+		/* Free BTPSKRNL allocated memory.                                */
+		BTPS_DeInit();
 
-      Display(("Stack Shutdown.\r\n"));
+		Display(("Stack Shutdown.\r\n"));
 
-      /* Flag that the Stack is no longer initialized.                  */
-      BluetoothStackID = 0;
+		/* Flag that the Stack is no longer initialized.                  */
+		BluetoothStackID = 0;
 
-      /* Flag success to the caller.                                    */
-      ret_val          = 0;
-   }
-   else
-   {
-      /* A valid Stack ID does not exist, inform to user.               */
-      ret_val = UNABLE_TO_INITIALIZE_STACK;
-   }
+		/* Flag success to the caller.                                    */
+		ret_val          = 0;
+	}
+	else
+	{
+		/* A valid Stack ID does not exist, inform to user.               */
+		ret_val = UNABLE_TO_INITIALIZE_STACK;
+	}
 
-   return(ret_val);
+	return ret_val;
 }
 
    /* The following function is responsible for placing the Local       */
@@ -328,31 +253,31 @@ static int CloseStack(void)
    /* execution and a negative value if an error occurred.              */
 static int SetDiscoverable(void)
 {
-   int ret_val = 0;
+	int ret_val = 0;
 
-   /* First, check that a valid Bluetooth Stack ID exists.              */
-   if(BluetoothStackID)
-   {
-      /* A semi-valid Bluetooth Stack ID exists, now attempt to set the */
-      /* attached Devices Discoverablity Mode to General.               */
-      ret_val = GAP_Set_Discoverability_Mode(BluetoothStackID, dmGeneralDiscoverableMode, 0);
+	/* First, check that a valid Bluetooth Stack ID exists.              */
+	if(BluetoothStackID)
+	{
+		/* A semi-valid Bluetooth Stack ID exists, now attempt to set the */
+		/* attached Devices Discoverablity Mode to General.               */
+		ret_val = GAP_Set_Discoverability_Mode(BluetoothStackID, dmGeneralDiscoverableMode, 0);
 
-      /* Next, check the return value of the GAP Set Discoverability    */
-      /* Mode command for successful execution.                         */
-      if(ret_val)
-      {
-         /* An error occurred while trying to set the Discoverability   */
-         /* Mode of the Device.                                         */
-         DisplayFunctionError("Set Discoverable Mode", ret_val);
-      }
-   }
-   else
-   {
-      /* No valid Bluetooth Stack ID exists.                            */
-      ret_val = INVALID_STACK_ID_ERROR;
-   }
+		/* Next, check the return value of the GAP Set Discoverability    */
+		/* Mode command for successful execution.                         */
+		if(ret_val)
+		{
+			/* An error occurred while trying to set the Discoverability   */
+			/* Mode of the Device.                                         */
+			DisplayFunctionError("Set Discoverable Mode", ret_val);
+		}
+	}
+	else
+	{
+		/* No valid Bluetooth Stack ID exists.                            */
+		ret_val = INVALID_STACK_ID_ERROR;
+	}
 
-   return(ret_val);
+	return ret_val;
 }
 
    /* The following function is responsible for placing the Local       */
@@ -363,31 +288,31 @@ static int SetDiscoverable(void)
    /* negative value if an error occurred.                              */
 static int SetConnect(void)
 {
-   int ret_val = 0;
+	int ret_val = 0;
 
-   /* First, check that a valid Bluetooth Stack ID exists.              */
-   if(BluetoothStackID)
-   {
-      /* Attempt to set the attached Device to be Connectable.          */
-      ret_val = GAP_Set_Connectability_Mode(BluetoothStackID, cmConnectableMode);
+	/* First, check that a valid Bluetooth Stack ID exists.              */
+	if(BluetoothStackID)
+	{
+		/* Attempt to set the attached Device to be Connectable.          */
+		ret_val = GAP_Set_Connectability_Mode(BluetoothStackID, cmConnectableMode);
 
-      /* Next, check the return value of the                            */
-      /* GAP_Set_Connectability_Mode() function for successful          */
-      /* execution.                                                     */
-      if(ret_val)
-      {
-         /* An error occurred while trying to make the Device           */
-         /* Connectable.                                                */
-         DisplayFunctionError("Set Connectability Mode", ret_val);
-      }
-   }
-   else
-   {
-      /* No valid Bluetooth Stack ID exists.                            */
-      ret_val = INVALID_STACK_ID_ERROR;
-   }
+		/* Next, check the return value of the                            */
+		/* GAP_Set_Connectability_Mode() function for successful          */
+		/* execution.                                                     */
+		if(ret_val)
+		{
+			/* An error occurred while trying to make the Device           */
+			/* Connectable.                                                */
+			DisplayFunctionError("Set Connectability Mode", ret_val);
+		}
+	}
+	else
+	{
+		/* No valid Bluetooth Stack ID exists.                            */
+		ret_val = INVALID_STACK_ID_ERROR;
+	}
 
-   return(ret_val);
+	return ret_val;
 }
 
    /* The following function is a utility function that exists to delete*/
@@ -396,38 +321,38 @@ static int SetConnect(void)
    /* deleted.                                                          */
 static int DeleteLinkKey(BD_ADDR_t BD_ADDR)
 {
-   int       Result;
-   Byte_t    Status_Result;
-   Word_t    Num_Keys_Deleted = 0;
-   BD_ADDR_t NULL_BD_ADDR;
+	int       Result;
+	Byte_t    Status_Result;
+	Word_t    Num_Keys_Deleted = 0;
+	BD_ADDR_t NULL_BD_ADDR;
 
-   Result = HCI_Delete_Stored_Link_Key(BluetoothStackID, BD_ADDR, TRUE, &Status_Result, &Num_Keys_Deleted);
+	Result = HCI_Delete_Stored_Link_Key(BluetoothStackID, BD_ADDR, TRUE, &Status_Result, &Num_Keys_Deleted);
 
-   /* Any stored link keys for the specified address (or all) have been */
-   /* deleted from the chip.  Now, let's make sure that our stored Link */
-   /* Key Array is in sync with these changes.                          */
+	/* Any stored link keys for the specified address (or all) have been */
+	/* deleted from the chip.  Now, let's make sure that our stored Link */
+	/* Key Array is in sync with these changes.                          */
 
-   /* First check to see all Link Keys were deleted.                    */
-   ASSIGN_BD_ADDR(NULL_BD_ADDR, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+	/* First check to see all Link Keys were deleted.                    */
+	ASSIGN_BD_ADDR(NULL_BD_ADDR, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
 
-   if(COMPARE_BD_ADDR(BD_ADDR, NULL_BD_ADDR))
-      BTPS_MemInitialize(LinkKeyInfo, 0, sizeof(LinkKeyInfo));
-   else
-   {
-      /* Individual Link Key.  Go ahead and see if know about the entry */
-      /* in the list.                                                   */
-      for(Result=0;(Result<sizeof(LinkKeyInfo)/sizeof(LinkKeyInfo_t));Result++)
-      {
-         if(COMPARE_BD_ADDR(BD_ADDR, LinkKeyInfo[Result].BD_ADDR))
-         {
-            LinkKeyInfo[Result].BD_ADDR = NULL_BD_ADDR;
+	if(COMPARE_BD_ADDR(BD_ADDR, NULL_BD_ADDR))
+	BTPS_MemInitialize(LinkKeyInfo, 0, sizeof(LinkKeyInfo));
+	else
+	{
+		/* Individual Link Key.  Go ahead and see if know about the entry */
+		/* in the list.                                                   */
+		for(Result=0;(Result<sizeof(LinkKeyInfo)/sizeof(LinkKeyInfo_t));Result++)
+		{
+			if(COMPARE_BD_ADDR(BD_ADDR, LinkKeyInfo[Result].BD_ADDR))
+			{
+				LinkKeyInfo[Result].BD_ADDR = NULL_BD_ADDR;
 
-            break;
-         }
-      }
-   }
+				break;
+			}
+		}
+	}
 
-   return(Result);
+	return(Result);
 }
 
    /* The following function is responsible for setting the name of the */
@@ -562,7 +487,7 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 	switch(L2CA_Event_Data->L2CA_Event_Type)
 	{
 	case etConnect_Indication:
-		Display(("L2CAP: Received connection request\r\n"));
+		LOG_INFO(("L2CAP: Received connection request\r\n"));
 		// accept connection
 		retval = L2CA_Connect_Response(BluetoothStackID,
 				L2CA_Event_Data->Event_Data.L2CA_Connect_Indication->BD_ADDR,
@@ -591,31 +516,35 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 				/* Config Request Error, so let's issue an error to   */
 				/* the user and Delete the CID that we have already   */
 				/* added to the List Box.                             */
-				Display(("     Config Request: Function Error %d.\r\n", retval));
+				LOG_ERROR(("     Config Request: Function Error %d.\r\n", retval));
 			}
 		}
 		else
 		{
-			Display(("Error occurred on Line %d, File %s\r\n", __LINE__, __FILE__));
+			LOG_ERROR(("L2CA_Connect_Response failed: Error code %d", retval));
 		}
 		break;
 
 	case etConnect_Confirmation:
-		Display(("L2CAP: Connect confirmation\r\n"));
+		LOG_INFO(("L2CAP: Connect confirmation\r\n"));
 		break;
 
 	case etDisconnect_Indication:
-		Display(("L2CAP: Disconnect indication\r\n"));
+		LOG_INFO(("L2CAP: Disconnect indication\r\n"));
 
-		L2CA_Disconnect_Response(BluetoothStackID, L2CA_Event_Data->Event_Data.L2CA_Disconnect_Indication->LCID);
+		retval = L2CA_Disconnect_Response(BluetoothStackID, L2CA_Event_Data->Event_Data.L2CA_Disconnect_Indication->LCID);
+		if(retval)
+		{
+			LOG_ERROR(("L2CA_Disconnect_Indication failed: Error code %d", retval));
+		}
 		break;
 
 	case etDisconnect_Confirmation:
-		Display(("L2CAP: Successfully disconnected\r\n"));
+		LOG_INFO(("L2CAP: Successfully disconnected\r\n"));
 		break;
 
 	case etConfig_Indication:
-		Display(("L2CAP: Config indication\r\n"));
+		LOG_INFO(("L2CAP: Config indication\r\n"));
 
 		memset(&ConfigResponse, 0, sizeof(L2CA_Config_Response_t));
 
@@ -631,17 +560,17 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 				&ConfigResponse);
 		if(retval)
 		{
-			Display(("Error occurred on Line %d, File %s\r\n", __LINE__, __FILE__));
+			LOG_ERROR(("L2CA_Config_Response failed: error code %d", retval));
 		}
 
 		break;
 
 	case etConfig_Confirmation:
-		Display(("L2CAP: Config confirmation\r\n"));
+		LOG_INFO(("L2CAP: Config confirmation\r\n"));
 		break;
 
 	case etData_Indication:
-		Display(("L2CAP: Received data, length %d\r\n", L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Data_Length));
+		LOG_INFO(("L2CAP: Received data, length %d\r\n", L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Data_Length));
 
 		protocol(L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Variable_Data,
 				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Data_Length,
@@ -651,15 +580,15 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 		break;
 
 	case etData_Error_Indication:
-		Display(("L2CAP: Received data error indication\r\n"));
+		LOG_DEBUG(("L2CAP: Received data error indication\r\n"));
 		break;
 
 	case etTimeout_Indication:
-		Display(("L2CAP: Timeout\r\n"));
+		LOG_DEBUG(("L2CAP: Timeout\r\n"));
 		break;
 
 	default:
-		Display(("L2CAP: Received something\r\n"));
+		LOG_DEBUG(("L2CAP: Received some event which we do not handle\r\n"));
 		break;
 	}
 }
