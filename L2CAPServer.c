@@ -192,22 +192,6 @@ static int                 SerialPortID;            /* Variable which contains t
                                                     /* Handle of the most recent       */
                                                     /* SPP Port that was opened.       */
 
-static int                 ServerPortID;            /* Variable which contains the     */
-                                                    /* Handle of the SPP Server Port   */
-                                                    /* that was opened.                */
-
-static Word_t              Connection_Handle;       /* Holds the Connection Handle of  */
-                                                    /* the most recent SPP Connection. */
-
-static Boolean_t           Connected;               /* Variable which flags whether or */
-                                                    /* not there is currently an active*/
-                                                    /* connection.                     */
-
-static DWord_t             SPPServerSDPHandle;      /* Variable used to hold the Serial*/
-                                                    /* Port Service Record of the      */
-                                                    /* Serial Port Server SDP Service  */
-                                                    /* Record.                         */
-
 static BD_ADDR_t           InquiryResultList[MAX_INQUIRY_RESULTS]; /* Variable which   */
                                                     /* contains the inquiry result     */
                                                     /* received from the most recently */
@@ -270,25 +254,6 @@ static unsigned int        NumberCommands;          /* Variable which is used to
 static BoardStr_t          Callback_BoardStr;       /* Holds a BD_ADDR string in the   */
                                                     /* Callbacks.                      */
 
-static BoardStr_t          Function_BoardStr;       /* Holds a BD_ADDR string in the   */
-                                                    /* various functions.              */
-
-static CommandTable_t      CommandTable[MAX_SUPPORTED_COMMANDS]; /* Variable which is  */
-                                                    /* used to hold the actual Commands*/
-                                                    /* that are supported by this      */
-                                                    /* application.                    */
-
-static Send_Info_t         SendInfo;                /* Variable that contains          */
-                                                    /* information about a data        */
-                                                    /* transfer process.               */
-
-   /* Variables which contain information used by the loopback          */
-   /* functionality of this test application.                           */
-static unsigned int        BufferLength;
-
-static unsigned char       Buffer[256];
-
-static Boolean_t           BufferFull;
 
    /* The following string table is used to map HCI Version information */
    /* to an easily displayable version string.                          */
@@ -317,12 +282,7 @@ static BTPSCONST char *IOCapabilitiesStrings[] =
 } ;
 
    /* Internal function prototypes.                                     */
-static unsigned long StringToUnsignedInteger(char *StringInteger);
-static char *StringParser(char *String);
-static CommandFunction_t FindCommand(char *Command);
-
 static void BD_ADDRToStr(BD_ADDR_t Board_Address, BoardStr_t BoardStr);
-static void DisplayClassOfDevice(Class_of_Device_t Class_of_Device);
 static void DisplayPrompt(void);
 static void DisplayUsage(char *UsageString);
 static void DisplayFunctionError(char *Function,int Status);
@@ -331,12 +291,11 @@ static void DisplayFunctionSuccess(char *Function);
 static int OpenStack(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initialization_t *BTPS_Initialization);
 static int CloseStack(void);
 
-static int SetDisc(void);
 static int SetConnect(void);
 static int SetPairable(void);
 static int DeleteLinkKey(BD_ADDR_t BD_ADDR);
 
-static int SetLocalName(ParameterList_t *TempParam);
+static int SetLocalName(char* name);
 
 static int SetBaudRate(ParameterList_t *TempParam);
 
@@ -681,55 +640,43 @@ static int DeleteLinkKey(BD_ADDR_t BD_ADDR)
    /* The following function is responsible for setting the name of the */
    /* local Bluetooth Device to a specified name.  This function returns*/
    /* zero on successful execution and a negative value on all errors.  */
-static int SetLocalName(ParameterList_t *TempParam)
+static int SetLocalName(char* name)
 {
-   int Result;
-   int ret_val = 0;
+	int Result;
+	int ret_val = 0;
 
-   /* First, check that valid Bluetooth Stack ID exists.                */
-   if(BluetoothStackID)
-   {
-      /* Make sure that all of the parameters required for this function*/
-      /* appear to be at least semi-valid.                              */
-      if((TempParam) && (TempParam->NumberofParameters > 0) && (TempParam->Params[0].strParam))
-      {
-         /* Attempt to submit the command.                              */
-         Result = GAP_Set_Local_Device_Name(BluetoothStackID, TempParam->Params[0].strParam);
+	/* First, check that valid Bluetooth Stack ID exists.                */
+	if(BluetoothStackID)
+	{
+		/* Attempt to submit the command.                              */
+		Result = GAP_Set_Local_Device_Name(BluetoothStackID, name);
 
-         /* Check the return value of the submitted command for success.*/
-         if(!Result)
-         {
-            /* Display a messsage indicating that the Device Name was   */
-            /* successfully submitted.                                  */
-            Display(("Local Device Name: %s.\r\n", TempParam->Params[0].strParam));
+		/* Check the return value of the submitted command for success.*/
+		if(!Result)
+		{
+			/* Display a messsage indicating that the Device Name was   */
+			/* successfully submitted.                                  */
+			Display(("Local Device Name: %s.\r\n", name));
 
-            /* Flag success to the caller.                              */
-            ret_val = 0;
-         }
-         else
-         {
-            /* Display a message indicating that an error occured while */
-            /* attempting to set the local Device Name.                 */
-            DisplayFunctionError("GAP_Set_Local_Device_Name", Result);
+			/* Flag success to the caller.                              */
+			ret_val = 0;
+		}
+		else
+		{
+			/* Display a message indicating that an error occured while */
+			/* attempting to set the local Device Name.                 */
+			DisplayFunctionError("GAP_Set_Local_Device_Name", Result);
 
-            ret_val = FUNCTION_ERROR;
-         }
-      }
-      else
-      {
-         /* One or more of the necessary parameters is/are invalid.     */
-         DisplayUsage("SetLocalName [Local Name]");
+			ret_val = FUNCTION_ERROR;
+		}
+	}
+	else
+	{
+		/* No valid Bluetooth Stack ID exists.                            */
+		ret_val = INVALID_STACK_ID_ERROR;
+	}
 
-         ret_val = INVALID_PARAMETERS_ERROR;
-      }
-   }
-   else
-   {
-      /* No valid Bluetooth Stack ID exists.                            */
-      ret_val = INVALID_STACK_ID_ERROR;
-   }
-
-   return(ret_val);
+	return ret_val;
 }
 
    /* The following thread is responsible for checking changing the     */
@@ -1267,17 +1214,6 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->CID,
 				BluetoothStackID);
 
-		/*
-		// Return the data we just received
-		retval = L2CA_Data_Write(BluetoothStackID,
-				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->CID,
-				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Data_Length,
-				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Variable_Data);
-
-		if(retval)
-		{
-			Display(("Error %d occurred on Line %d, File %s\r\n", retval, __LINE__, __FILE__));
-		}*/
 		break;
 
 	case etData_Error_Indication:
@@ -1385,13 +1321,15 @@ int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_I
             {
                /* Now that the device is discoverable attempt to make it*/
                /* pairable.                                             */
-               ret_val = SetPairable();
+               /*ret_val = SetPairable();
                if(!ret_val)
-               {
+               {*/
                   /* Attempt to register a HCI Event Callback.          */
                   ret_val = HCI_Register_Event_Callback(BluetoothStackID, HCI_Event_Callback, (unsigned long)NULL);
                   if(ret_val > 0)
                   {
+                	  SetLocalName("Stone BT");
+
                      // NOW WE SHOULD INITIALIZE ALL L2CAP STUFF
                      L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
 
@@ -1400,9 +1338,9 @@ int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_I
                   }
                   else
                      DisplayFunctionError("HCI_Register_Event_Callback()", ret_val);
-               }
+               /*}
                else
-                  DisplayFunctionError("SetPairable", ret_val);
+                  DisplayFunctionError("SetPairable", ret_val);*/
             }
             else
                DisplayFunctionError("SetDisc", ret_val);
