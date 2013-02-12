@@ -316,26 +316,12 @@ static BTPSCONST char *IOCapabilitiesStrings[] =
    "No Input/Output"
 } ;
 
-   /* The following defines a data sequence that will be used to        */
-   /* generate message data.                                            */
-static char  DataStr[]  = "~!@#$%^&*()_+`1234567890-=:;\"'<>?,./@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]`abcdefghijklmnopqrstuvwxyz{|}<>\r\n";
-static int   DataStrLen = (sizeof(DataStr)-1);
-
    /* Internal function prototypes.                                     */
-static void UserInterface_Client(void);
-static void UserInterface_Server(void);
-static void UserInterface_Selection(void);
-static Boolean_t CommandLineInterpreter(char *Command);
 static unsigned long StringToUnsignedInteger(char *StringInteger);
 static char *StringParser(char *String);
-static int CommandParser(UserCommand_t *TempCommand, char *Input);
-static int CommandInterpreter(UserCommand_t *TempCommand);
-static int AddCommand(char *CommandName, CommandFunction_t CommandFunction);
 static CommandFunction_t FindCommand(char *Command);
-static void ClearCommands(void);
 
 static void BD_ADDRToStr(BD_ADDR_t Board_Address, BoardStr_t BoardStr);
-static void DisplayIOCapabilities(void);
 static void DisplayClassOfDevice(Class_of_Device_t Class_of_Device);
 static void DisplayPrompt(void);
 static void DisplayUsage(char *UsageString);
@@ -350,193 +336,14 @@ static int SetConnect(void);
 static int SetPairable(void);
 static int DeleteLinkKey(BD_ADDR_t BD_ADDR);
 
-static int QueryMemory(ParameterList_t *TempParam);
-
-static int GetLocalAddress(ParameterList_t *TempParam);
 static int SetLocalName(ParameterList_t *TempParam);
-static int GetLocalName(ParameterList_t *TempParam);
-static int SetClassOfDevice(ParameterList_t *TempParam);
-static int GetClassOfDevice(ParameterList_t *TempParam);
 
-static int Loopback(ParameterList_t *TempParam);
 static int SetBaudRate(ParameterList_t *TempParam);
 
    /* BTPS Callback function prototypes.                                */
 static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Event_Data_t *L2CA_Event_Data, unsigned long CallbackParameter);
 static void BTPSAPI GAP_Event_Callback(unsigned int BluetoothStackID, GAP_Event_Data_t *GAP_Event_Data, unsigned long CallbackParameter);
 static void BTPSAPI HCI_Event_Callback(unsigned int BluetoothStackID, HCI_Event_Data_t *HCI_Event_Data, unsigned long CallbackParameter);
-
-
-   /* The following function is responsible for converting number       */
-   /* strings to there unsigned integer equivalent.  This function can  */
-   /* handle leading and tailing white space, however it does not handle*/
-   /* signed or comma delimited values.  This function takes as its     */
-   /* input the string which is to be converted.  The function returns  */
-   /* zero if an error occurs otherwise it returns the value parsed from*/
-   /* the string passed as the input parameter.                         */
-static unsigned long StringToUnsignedInteger(char *StringInteger)
-{
-   int           IsHex;
-   unsigned int  Index;
-   unsigned long ret_val = 0;
-
-   /* Before proceeding make sure that the parameter that was passed as */
-   /* an input appears to be at least semi-valid.                       */
-   if((StringInteger) && (BTPS_StringLength(StringInteger)))
-   {
-      /* Initialize the variable.                                       */
-      Index = 0;
-
-      /* Next check to see if this is a hexadecimal number.             */
-      if(BTPS_StringLength(StringInteger) > 2)
-      {
-         if((StringInteger[0] == '0') && ((StringInteger[1] == 'x') || (StringInteger[1] == 'X')))
-         {
-            IsHex = 1;
-
-            /* Increment the String passed the Hexadecimal prefix.      */
-            StringInteger += 2;
-         }
-         else
-            IsHex = 0;
-      }
-      else
-         IsHex = 0;
-
-      /* Process the value differently depending on whether or not a    */
-      /* Hexadecimal Number has been specified.                         */
-      if(!IsHex)
-      {
-         /* Decimal Number has been specified.                          */
-         while(1)
-         {
-            /* First check to make sure that this is a valid decimal    */
-            /* digit.                                                   */
-            if((StringInteger[Index] >= '0') && (StringInteger[Index] <= '9'))
-            {
-               /* This is a valid digit, add it to the value being      */
-               /* built.                                                */
-               ret_val += (StringInteger[Index] & 0xF);
-
-               /* Determine if the next digit is valid.                 */
-               if(((Index + 1) < BTPS_StringLength(StringInteger)) && (StringInteger[Index+1] >= '0') && (StringInteger[Index+1] <= '9'))
-               {
-                  /* The next digit is valid so multiply the current    */
-                  /* return value by 10.                                */
-                  ret_val *= 10;
-               }
-               else
-               {
-                  /* The next value is invalid so break out of the loop.*/
-                  break;
-               }
-            }
-
-            Index++;
-         }
-      }
-      else
-      {
-         /* Hexadecimal Number has been specified.                      */
-         while(1)
-         {
-            /* First check to make sure that this is a valid Hexadecimal*/
-            /* digit.                                                   */
-            if(((StringInteger[Index] >= '0') && (StringInteger[Index] <= '9')) || ((StringInteger[Index] >= 'a') && (StringInteger[Index] <= 'f')) || ((StringInteger[Index] >= 'A') && (StringInteger[Index] <= 'F')))
-            {
-               /* This is a valid digit, add it to the value being      */
-               /* built.                                                */
-               if((StringInteger[Index] >= '0') && (StringInteger[Index] <= '9'))
-                  ret_val += (StringInteger[Index] & 0xF);
-               else
-               {
-                  if((StringInteger[Index] >= 'a') && (StringInteger[Index] <= 'f'))
-                     ret_val += (StringInteger[Index] - 'a' + 10);
-                  else
-                     ret_val += (StringInteger[Index] - 'A' + 10);
-               }
-
-               /* Determine if the next digit is valid.                 */
-               if(((Index + 1) < BTPS_StringLength(StringInteger)) && (((StringInteger[Index+1] >= '0') && (StringInteger[Index+1] <= '9')) || ((StringInteger[Index+1] >= 'a') && (StringInteger[Index+1] <= 'f')) || ((StringInteger[Index+1] >= 'A') && (StringInteger[Index+1] <= 'F'))))
-               {
-                  /* The next digit is valid so multiply the current    */
-                  /* return value by 16.                                */
-                  ret_val *= 16;
-               }
-               else
-               {
-                  /* The next value is invalid so break out of the loop.*/
-                  break;
-               }
-            }
-
-            Index++;
-         }
-      }
-   }
-
-   return(ret_val);
-}
-
-   /* The following function is responsible for parsing strings into    */
-   /* components.  The first parameter of this function is a pointer to */
-   /* the String to be parsed.  This function will return the start of  */
-   /* the string upon success and a NULL pointer on all errors.         */
-static char *StringParser(char *String)
-{
-   int   Index;
-   char *ret_val = NULL;
-
-   /* Before proceeding make sure that the string passed in appears to  */
-   /* be at least semi-valid.                                           */
-   if((String) && (BTPS_StringLength(String)))
-   {
-      /* The string appears to be at least semi-valid.  Search for the  */
-      /* first space character and replace it with a NULL terminating   */
-      /* character.                                                     */
-      for(Index=0, ret_val=String;Index < BTPS_StringLength(String);Index++)
-      {
-         /* Is this the space character.                                */
-         if((String[Index] == ' ') || (String[Index] == '\r') || (String[Index] == '\n'))
-         {
-            /* This is the space character, replace it with a NULL      */
-            /* terminating character and set the return value to the    */
-            /* begining character of the string.                        */
-            String[Index] = '\0';
-            break;
-         }
-      }
-   }
-
-   return(ret_val);
-}
-
-
-   /* The following function searches the Command Table for the         */
-   /* specified Command.  If the Command is found, this function returns*/
-   /* a NON-NULL Command Function Pointer.  If the command is not found */
-   /* this function returns NULL.                                       */
-static CommandFunction_t FindCommand(char *Command)
-{
-   unsigned int      Index;
-   CommandFunction_t ret_val;
-
-   /* First, make sure that the command specified is semi-valid.        */
-   if(Command)
-   {
-      /* Now loop through each element in the table to see if there is  */
-      /* a match.                                                       */
-      for(Index=0,ret_val=NULL;((Index<NumberCommands) && (!ret_val));Index++)
-      {
-         if((BTPS_StringLength(CommandTable[Index].CommandName) == BTPS_StringLength(Command)) && (BTPS_MemCompare(Command, CommandTable[Index].CommandName, BTPS_StringLength(CommandTable[Index].CommandName)) == 0))
-            ret_val = CommandTable[Index].CommandFunction;
-      }
-   }
-   else
-      ret_val = NULL;
-
-   return(ret_val);
-}
 
    /* The following function is responsible for converting data of type */
    /* BD_ADDR to a string.  The first parameter of this function is the */
@@ -546,13 +353,6 @@ static CommandFunction_t FindCommand(char *Command)
 static void BD_ADDRToStr(BD_ADDR_t Board_Address, BoardStr_t BoardStr)
 {
    BTPS_SprintF((char *)BoardStr, "0x%02X%02X%02X%02X%02X%02X", Board_Address.BD_ADDR5, Board_Address.BD_ADDR4, Board_Address.BD_ADDR3, Board_Address.BD_ADDR2, Board_Address.BD_ADDR1, Board_Address.BD_ADDR0);
-}
-
-
-   /* Utility function to display a Class of Device Structure.          */
-static void DisplayClassOfDevice(Class_of_Device_t Class_of_Device)
-{
-   Display(("Class of Device: 0x%02X%02X%02X.\r\n", Class_of_Device.Class_of_Device0, Class_of_Device.Class_of_Device1, Class_of_Device.Class_of_Device2));
 }
 
    /* Displays the correct prompt depening on the Server/Client Mode.   */
@@ -722,7 +522,7 @@ static int CloseStack(void)
    /* Devices.  This function requires that a valid Bluetooth Stack ID  */
    /* exists before running.  This function returns zero on successful  */
    /* execution and a negative value if an error occurred.              */
-static int SetDisc(void)
+static int SetDiscoverable(void)
 {
    int ret_val = 0;
 
@@ -1577,7 +1377,7 @@ int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_I
          {
             /* Now that the device is Connectable attempt to make it    */
             /* Discoverable.                                            */
-            ret_val = SetDisc();
+            ret_val = SetDiscoverable();
 
             /* Next, check to see if the Device was successfully made   */
             /* Discoverable.                                            */
