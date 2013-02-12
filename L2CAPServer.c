@@ -182,77 +182,15 @@ typedef struct _tagSend_Info_t
    /* declared static are initialized to 0 automatically by the         */
    /* compiler as part of standard C/C++).                              */
 
-static int                 UI_Mode;                 /* Holds the UI Mode.              */
 
 static unsigned int        BluetoothStackID;        /* Variable which holds the Handle */
                                                     /* of the opened Bluetooth Protocol*/
                                                     /* Stack.                          */
 
-static int                 SerialPortID;            /* Variable which contains the     */
-                                                    /* Handle of the most recent       */
-                                                    /* SPP Port that was opened.       */
-
-static BD_ADDR_t           InquiryResultList[MAX_INQUIRY_RESULTS]; /* Variable which   */
-                                                    /* contains the inquiry result     */
-                                                    /* received from the most recently */
-                                                    /* preformed inquiry.              */
-
-static unsigned int        NumberofValidResponses;  /* Variable which holds the number */
-                                                    /* of valid inquiry results within */
-                                                    /* the inquiry results array.      */
 
 static LinkKeyInfo_t       LinkKeyInfo[MAX_SUPPORTED_LINK_KEYS]; /* Variable holds     */
                                                     /* BD_ADDR <-> Link Keys for       */
                                                     /* pairing.                        */
-
-static BD_ADDR_t           CurrentRemoteBD_ADDR;    /* Variable which holds the        */
-                                                    /* current BD_ADDR of the device   */
-                                                    /* which is currently pairing or   */
-                                                    /* authenticating.                 */
-
-static GAP_IO_Capability_t IOCapability;            /* Variable which holds the        */
-                                                    /* current I/O Capabilities that   */
-                                                    /* are to be used for Secure Simple*/
-                                                    /* Pairing.                        */
-
-static Boolean_t           OOBSupport;              /* Variable which flags whether    */
-                                                    /* or not Out of Band Secure Simple*/
-                                                    /* Pairing exchange is supported.  */
-
-static Boolean_t           MITMProtection;          /* Variable which flags whether or */
-                                                    /* not Man in the Middle (MITM)    */
-                                                    /* protection is to be requested   */
-                                                    /* during a Secure Simple Pairing  */
-                                                    /* procedure.                      */
-
-static BD_ADDR_t           SelectedBD_ADDR;         /* Holds address of selected Device*/
-
-static BD_ADDR_t           NullADDR;                /* Holds a NULL BD_ADDR for comp.  */
-                                                    /* purposes.                       */
-
-static Boolean_t           LoopbackActive;          /* Variable which flags whether or */
-                                                    /* not the application is currently*/
-                                                    /* operating in Loopback Mode      */
-                                                    /* (TRUE) or not (FALSE).          */
-
-static Boolean_t           DisplayRawData;          /* Variable which flags whether or */
-                                                    /* not the application is to       */
-                                                    /* simply display the Raw Data     */
-                                                    /* when it is received (when not   */
-                                                    /* operating in Loopback Mode).    */
-
-static Boolean_t           AutomaticReadActive;     /* Variable which flags whether or */
-                                                    /* not the application is to       */
-                                                    /* automatically read all data     */
-                                                    /* as it is received.              */
-
-static unsigned int        NumberCommands;          /* Variable which is used to hold  */
-                                                    /* the number of Commands that are */
-                                                    /* supported by this application.  */
-                                                    /* Commands are added individually.*/
-
-static BoardStr_t          Callback_BoardStr;       /* Holds a BD_ADDR string in the   */
-                                                    /* Callbacks.                      */
 
 
    /* The following string table is used to map HCI Version information */
@@ -271,28 +209,14 @@ static BTPSCONST char *HCIVersionStrings[] =
 
 #define NUM_SUPPORTED_HCI_VERSIONS              (sizeof(HCIVersionStrings)/sizeof(char *) - 1)
 
-   /* The following string table is used to map the API I/O Capabilities*/
-   /* values to an easily displayable string.                           */
-static BTPSCONST char *IOCapabilitiesStrings[] =
-{
-   "Display Only",
-   "Display Yes/No",
-   "Keyboard Only",
-   "No Input/Output"
-} ;
-
    /* Internal function prototypes.                                     */
 static void BD_ADDRToStr(BD_ADDR_t Board_Address, BoardStr_t BoardStr);
-static void DisplayPrompt(void);
-static void DisplayUsage(char *UsageString);
 static void DisplayFunctionError(char *Function,int Status);
-static void DisplayFunctionSuccess(char *Function);
 
 static int OpenStack(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initialization_t *BTPS_Initialization);
 static int CloseStack(void);
 
 static int SetConnect(void);
-static int SetPairable(void);
 static int DeleteLinkKey(BD_ADDR_t BD_ADDR);
 
 static int SetLocalName(char* name);
@@ -301,8 +225,6 @@ static int SetBaudRate(ParameterList_t *TempParam);
 
    /* BTPS Callback function prototypes.                                */
 static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Event_Data_t *L2CA_Event_Data, unsigned long CallbackParameter);
-static void BTPSAPI GAP_Event_Callback(unsigned int BluetoothStackID, GAP_Event_Data_t *GAP_Event_Data, unsigned long CallbackParameter);
-static void BTPSAPI HCI_Event_Callback(unsigned int BluetoothStackID, HCI_Event_Data_t *HCI_Event_Data, unsigned long CallbackParameter);
 
    /* The following function is responsible for converting data of type */
    /* BD_ADDR to a string.  The first parameter of this function is the */
@@ -314,35 +236,10 @@ static void BD_ADDRToStr(BD_ADDR_t Board_Address, BoardStr_t BoardStr)
    BTPS_SprintF((char *)BoardStr, "0x%02X%02X%02X%02X%02X%02X", Board_Address.BD_ADDR5, Board_Address.BD_ADDR4, Board_Address.BD_ADDR3, Board_Address.BD_ADDR2, Board_Address.BD_ADDR1, Board_Address.BD_ADDR0);
 }
 
-   /* Displays the correct prompt depening on the Server/Client Mode.   */
-static void DisplayPrompt(void)
-{
-   if(UI_Mode == UI_MODE_IS_CLIENT)
-      Display(("\r\nClient>"));
-   else
-   {
-      if(UI_Mode == UI_MODE_IS_SERVER)
-         Display(("\r\nServer>"));
-      else
-         Display(("\r\nChoose Mode>"));
-   }
-}
-
-   /* Displays a usage string..                                         */
-static void DisplayUsage(char *UsageString)
-{
-   Display(("\nUsage: %s.\r\n", UsageString));
-}
-
    /* Displays a function error.                                        */
 static void DisplayFunctionError(char *Function, int Status)
 {
    Display(("\n%s Failed: %d.\r\n", Function, Status));
-}
-
-static void DisplayFunctionSuccess(char *Function)
-{
-   Display(("\n%s success.\r\n", Function));
 }
 
    /* The following function is responsible for opening the SS1         */
@@ -386,11 +283,6 @@ static int OpenStack(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initia
             /* to the Bluetooth Stack ID.                               */
             BluetoothStackID = Result;
             Display(("Bluetooth Stack ID: %d\r\n", BluetoothStackID));
-
-            /* Initialize the default Secure Simple Pairing parameters. */
-            IOCapability     = DEFAULT_IO_CAPABILITY;
-            OOBSupport       = FALSE;
-            MITMProtection   = DEFAULT_MITM_PROTECTION;
 
             if(!HCI_Version_Supported(BluetoothStackID, &HCIVersion))
                Display(("Device Chipset: %s\r\n", (HCIVersion <= NUM_SUPPORTED_HCI_VERSIONS)?HCIVersionStrings[HCIVersion]:HCIVersionStrings[NUM_SUPPORTED_HCI_VERSIONS]));
@@ -696,15 +588,11 @@ static int SetBaudRate(ParameterList_t *TempParam)
          }
          else
          {
-            DisplayUsage("SetBaudRate [BaudRate]");
-
             ret_val = INVALID_PARAMETERS_ERROR;
          }
       }
       else
       {
-         DisplayUsage("SetBaudRate [BaudRate]");
-
          ret_val = INVALID_PARAMETERS_ERROR;
       }
    }
@@ -832,51 +720,6 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 	}
 }
 
-   /* The following function is responsible for processing HCI Mode     */
-   /* change events.                                                    */
-static void BTPSAPI HCI_Event_Callback(unsigned int BluetoothStackID, HCI_Event_Data_t *HCI_Event_Data, unsigned long CallbackParameter)
-{
-   char *Mode;
-
-   /* Make sure that the input parameters that were passed to us are    */
-   /* semi-valid.                                                       */
-   if((BluetoothStackID) && (HCI_Event_Data))
-   {
-      /* Process the Event Data.                                        */
-      switch(HCI_Event_Data->Event_Data_Type)
-      {
-         case etMode_Change_Event:
-            if(HCI_Event_Data->Event_Data.HCI_Mode_Change_Event_Data)
-            {
-               switch(HCI_Event_Data->Event_Data.HCI_Mode_Change_Event_Data->Current_Mode)
-               {
-                  case HCI_CURRENT_MODE_HOLD_MODE:
-                     Mode = "Hold";
-                     break;
-                  case HCI_CURRENT_MODE_SNIFF_MODE:
-                     Mode = "Sniff";
-                     break;
-                  case HCI_CURRENT_MODE_PARK_MODE:
-                     Mode = "Park";
-                     break;
-                  case HCI_CURRENT_MODE_ACTIVE_MODE:
-                  default:
-                     Mode = "Active";
-                     break;
-               }
-
-               Display(("\r\n"));
-               Display(("HCI Mode Change Event, Status: 0x%02X, Connection Handle: %d, Mode: %s, Interval: %d\r\n", HCI_Event_Data->Event_Data.HCI_Mode_Change_Event_Data->Status,
-                                                                                                                    HCI_Event_Data->Event_Data.HCI_Mode_Change_Event_Data->Connection_Handle,
-                                                                                                                    Mode,
-                                                                                                                    HCI_Event_Data->Event_Data.HCI_Mode_Change_Event_Data->Interval));
-               DisplayPrompt();
-            }
-            break;
-      }
-   }
-}
-
    /* The following function is used to initialize the application      */
    /* instance.  This function should open the stack and prepare to     */
    /* execute commands based on user input.  The first parameter passed */
@@ -888,14 +731,6 @@ static void BTPSAPI HCI_Event_Callback(unsigned int BluetoothStackID, HCI_Event_
 int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initialization_t *BTPS_Initialization)
 {
 	int ret_val = APPLICATION_ERROR_UNABLE_TO_OPEN_STACK;
-
-	/* Initiailize some defaults.                                        */
-	SerialPortID           = 0;
-	UI_Mode                = UI_MODE_SELECT;
-	LoopbackActive         = FALSE;
-	DisplayRawData         = FALSE;
-	AutomaticReadActive    = FALSE;
-	NumberofValidResponses = 0;
 
 	/* Next, makes sure that the Driver Information passed appears to be */
 	/* semi-valid.                                                       */
@@ -921,20 +756,13 @@ int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_I
 				/* Discoverable.                                            */
 				if(!ret_val)
 				{
-					/* Attempt to register a HCI Event Callback.          */
-					ret_val = HCI_Register_Event_Callback(BluetoothStackID, HCI_Event_Callback, (unsigned long)NULL);
-					if(ret_val > 0)
-					{
-						SetLocalName("Stone BT");
+					SetLocalName("Stone BT");
 
-						// NOW WE SHOULD INITIALIZE ALL L2CAP STUFF
-						L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
+					// NOW WE SHOULD INITIALIZE ALL L2CAP STUFF
+					L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
 
-						/* Return success to the caller.                   */
-						ret_val = (int)BluetoothStackID;
-					}
-					else
-						DisplayFunctionError("HCI_Register_Event_Callback()", ret_val);
+					/* Return success to the caller.                   */
+					ret_val = (int)BluetoothStackID;
 				}
 				else
 					DisplayFunctionError("SetDisc", ret_val);

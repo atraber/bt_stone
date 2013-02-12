@@ -215,5 +215,7 @@ int l2cap_send(Word_t LCID, uint8_t *data, uint16_t len)
 	{
 		Display(("Error %d occurred on Line %d, File %s\r\n", retval, __LINE__, __FILE__));
 	}
+
+	return 1;
 }
 
