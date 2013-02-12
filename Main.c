@@ -80,6 +80,12 @@ static void IdleFunction(void *UserParameter)
       HAL_LedToggle(0);
 }
 
+
+static void ButtonPollFunction(void *UserParameter)
+{
+	port2_poll();
+}
+
    /* The following function is the main user interface thread.  It     */
    /* opens the Bluetooth Stack and then drives the main user interface.*/
 static void MainThread(void)
@@ -106,14 +112,21 @@ static void MainThread(void)
 		HCILL_Init();
 		HCILL_Configure(BluetoothStackID, HCILL_MODE_INACTIVITY_TIMEOUT, HCILL_MODE_RETRANSMIT_TIMEOUT, TRUE);
 
-		/* Add the idle function (which determines if LPM3 may be      */
-		/* entered) to the scheduler.                                  */
-		if(BTPS_AddFunctionToScheduler(IdleFunction, NULL, HCILL_MODE_INACTIVITY_TIMEOUT))
+		// add our polling function to the scheduler
+		// period = 50ms
+		if(BTPS_AddFunctionToScheduler(ButtonPollFunction, NULL, 50))
 		{
-			/* Loop forever and execute the scheduler.                  */
-			while(1)
-			BTPS_ExecuteScheduler();
+			/* Add the idle function (which determines if LPM3 may be      */
+			/* entered) to the scheduler.                                  */
+			if(BTPS_AddFunctionToScheduler(IdleFunction, NULL, HCILL_MODE_INACTIVITY_TIMEOUT))
+			{
+				/* Loop forever and execute the scheduler.                  */
+				while(1)
+				BTPS_ExecuteScheduler();
+			}
 		}
+
+
 	}
 }
 
@@ -122,34 +135,26 @@ static void MainThread(void)
    /* layer, create the Main application thread and start the scheduler.*/
 int main(void)
 {
-   /* Turn off the watchdog timer                                       */
-   WDTCTL = WDTPW | WDTHOLD;
+	/* Turn off the watchdog timer                                       */
+	WDTCTL = WDTPW | WDTHOLD;
 
-   /* Configure the hardware for its intended use.                      */
-   HAL_ConfigureHardware();
+	/* Configure the hardware for its intended use.                      */
+	HAL_ConfigureHardware();
 
-   initi2c();
+	initi2c();
 
-   /* Enable interrupts and call the main application thread.           */
-   __enable_interrupt();
-   MainThread();
+	P2DIR = 0;
+	P2REN = BIT0 + BIT1 + BIT2 + BIT3;
+	P2OUT = BIT0 + BIT1 + BIT2 + BIT3;
 
-   /* MainThread should run continously, if it exits an error occured.  */
-   while(1)
-   {
-      HAL_LedToggle(0);
-      BTPS_Delay(100);
-   }
-}
+	/* Enable interrupts and call the main application thread.           */
+	__enable_interrupt();
+	MainThread();
 
-
-// for printf support
-#include <stdio.h>
-#include <stdlib.h>
-
-int fputc(int _c, register FILE *_fp)
-{
-	DisplayCallback(_c);
-
-	return((unsigned char)_c);
+	/* MainThread should run continously, if it exits an error occured.  */
+	while(1)
+	{
+		HAL_LedToggle(0);
+		BTPS_Delay(100);
+	}
 }

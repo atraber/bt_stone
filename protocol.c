@@ -7,10 +7,10 @@
 #include "L2CAPServer.h"         /* Application Header.                       */
 #include "BTPSKRNL.h"            /* BTPS Kernel Header.                       */
 
-#include "i2c_lib.h"
-
    /* The following is used as a printf replacement.                    */
 #define Display(_x)                 do { BTPS_OutputMessage _x; } while(0)
+
+#include "i2c_lib.h"
 
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
@@ -20,7 +20,7 @@ int type;
 int len;
 int seq;
 int ownseq = 0;
-Word_t local_cid;
+Word_t local_cid = 0;
 unsigned int g_BluetoothStackID;
 
 // variables used temporary but initialized only once
@@ -194,7 +194,7 @@ int port2_poll()
 	{
 		// only check first 4 bits, ignore rest
 		port2_status = P2IN & 0x0F;
-		printf("status sent\n");
+		Display(("status sent\r\n"));
 		send_port2_status(port2_status);
 	}
 
