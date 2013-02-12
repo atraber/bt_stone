@@ -126,57 +126,10 @@ typedef struct _tagLinkKeyInfo_t
    Link_Key_t LinkKey;
 } LinkKeyInfo_t;
 
-   /* The following type definition represents the structure which holds*/
-   /* all information about the parameter, in particular the parameter  */
-   /* as a string and the parameter as an unsigned int.                 */
-typedef struct _tagParameter_t
-{
-   char     *strParam;
-   SDWord_t  intParam;
-} Parameter_t;
-
-   /* The following type definition represents the structure which holds*/
-   /* a list of parameters that are to be associated with a command The */
-   /* NumberofParameters variable holds the value of the number of      */
-   /* parameters in the list.                                           */
-typedef struct _tagParameterList_t
-{
-   int         NumberofParameters;
-   Parameter_t Params[MAX_NUM_OF_PARAMETERS];
-} ParameterList_t;
-
-   /* The following type definition represents the structure which holds*/
-   /* the command and parameters to be executed.                        */
-typedef struct _tagUserCommand_t
-{
-   char            *Command;
-   ParameterList_t  Parameters;
-} UserCommand_t;
-
-   /* The following type definition represents the generic function     */
-   /* pointer to be used by all commands that can be executed by the    */
-   /* test program.                                                     */
-typedef int (*CommandFunction_t)(ParameterList_t *TempParam);
-
-   /* The following type definition represents the structure which holds*/
-   /* information used in the interpretation and execution of Commands. */
-typedef struct _tagCommandTable_t
-{
-   char              *CommandName;
-   CommandFunction_t  CommandFunction;
-} CommandTable_t;
-
    /* User to represent a structure to hold a BD_ADDR return from       */
    /* BD_ADDRToStr.                                                     */
 typedef char BoardStr_t[15];
 
-   /* The following structure holds status information about a send     */
-   /* process.                                                          */
-typedef struct _tagSend_Info_t
-{
-   DWord_t BytesToSend;
-   DWord_t BytesSent;
-} Send_Info_t;
 
    /* Internal Variables to this Module (Remember that all variables    */
    /* declared static are initialized to 0 automatically by the         */
@@ -221,7 +174,7 @@ static int DeleteLinkKey(BD_ADDR_t BD_ADDR);
 
 static int SetLocalName(char* name);
 
-static int SetBaudRate(ParameterList_t *TempParam);
+static int SetBaudRate(SDWord_t baudrate);
 
    /* BTPS Callback function prototypes.                                */
 static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Event_Data_t *L2CA_Event_Data, unsigned long CallbackParameter);
@@ -523,7 +476,7 @@ static int SetLocalName(char* name)
    /* current Baud Rate used to talk to the Radio.                      */
    /* * NOTE * This function ONLY configures the Baud Rate for a TI     */
    /*          Bluetooth chipset.                                       */
-static int SetBaudRate(ParameterList_t *TempParam)
+static int SetBaudRate(SDWord_t baudrate)
 {
    int                              ret_val;
    Byte_t                           Length;
@@ -540,61 +493,52 @@ static int SetBaudRate(ParameterList_t *TempParam)
    /* this function appear to be semi-valid.                            */
    if(BluetoothStackID)
    {
-      /* Next check to see if the parameters required for the execution */
-      /* of this function appear to be semi-valid.                      */
-      if((TempParam) && (TempParam->NumberofParameters > 0))
-      {
-         /* Verify that this is a valid taable index.                   */
-         if(TempParam->Params[0].intParam)
-         {
-            /* Write the Baud Rate.                                     */
-            ASSIGN_HOST_DWORD_TO_LITTLE_ENDIAN_UNALIGNED_DWORD(&_BaudRate, (TempParam->Params[0].intParam));
+	 /* Verify that this is a valid taable index.                   */
+	 if(baudrate)
+	 {
+		/* Write the Baud Rate.                                     */
+		ASSIGN_HOST_DWORD_TO_LITTLE_ENDIAN_UNALIGNED_DWORD(&_BaudRate, (baudrate));
 
-            /* Next, write the command to the device.                   */
-            Length  = sizeof(Data.Buffer);
-            ret_val = HCI_Send_Raw_Command(BluetoothStackID, 0x3F, 0x0336, sizeof(NonAlignedDWord_t), (Byte_t *)&_BaudRate, &Status, &Length, Data.Buffer, TRUE);
-            if((!ret_val) && (!Status))
-            {
-               /* We were successful, now we need to change the baud    */
-               /* rate of the driver.                                   */
-               BTPS_MemInitialize(&(Data.DriverReconfigureData), 0, sizeof(HCI_Driver_Reconfigure_Data_t));
+		/* Next, write the command to the device.                   */
+		Length  = sizeof(Data.Buffer);
+		ret_val = HCI_Send_Raw_Command(BluetoothStackID, 0x3F, 0x0336, sizeof(NonAlignedDWord_t), (Byte_t *)&_BaudRate, &Status, &Length, Data.Buffer, TRUE);
+		if((!ret_val) && (!Status))
+		{
+		   /* We were successful, now we need to change the baud    */
+		   /* rate of the driver.                                   */
+		   BTPS_MemInitialize(&(Data.DriverReconfigureData), 0, sizeof(HCI_Driver_Reconfigure_Data_t));
 
-               Data.DriverReconfigureData.ReconfigureCommand = HCI_COMM_DRIVER_RECONFIGURE_DATA_COMMAND_CHANGE_PARAMETERS;
-               Data.DriverReconfigureData.ReconfigureData    = (void *)&(TempParam->Params[0].intParam);
+		   Data.DriverReconfigureData.ReconfigureCommand = HCI_COMM_DRIVER_RECONFIGURE_DATA_COMMAND_CHANGE_PARAMETERS;
+		   Data.DriverReconfigureData.ReconfigureData    = (void *)&baudrate;
 
-               ret_val = HCI_Reconfigure_Driver(BluetoothStackID, FALSE, &(Data.DriverReconfigureData));
+		   ret_val = HCI_Reconfigure_Driver(BluetoothStackID, FALSE, &(Data.DriverReconfigureData));
 
-               if(ret_val >= 0)
-               {
-                  Display(("HCI_Reconfigure_Driver(%lu): Success.\r\n", (TempParam->Params[0].intParam)));
+		   if(ret_val >= 0)
+		   {
+			  Display(("HCI_Reconfigure_Driver(%lu): Success.\r\n", baudrate));
 
-                  /* Flag success.                                      */
-                  ret_val = 0;
-               }
-               else
-               {
-                  Display(("HCI_Reconfigure_Driver(%lu): Failure %d.\r\n", (TempParam->Params[0].intParam), ret_val));
+			  /* Flag success.                                      */
+			  ret_val = 0;
+		   }
+		   else
+		   {
+			  Display(("HCI_Reconfigure_Driver(%lu): Failure %d.\r\n", baudrate, ret_val));
 
-                  ret_val = FUNCTION_ERROR;
-               }
-            }
-            else
-            {
-               /* Unable to write vendor specific command to chipset.   */
-               Display(("HCI_Send_Raw_Command(%lu): Failure %d, %d.\r\n", (TempParam->Params[0].intParam), ret_val, Status));
+			  ret_val = FUNCTION_ERROR;
+		   }
+		}
+		else
+		{
+		   /* Unable to write vendor specific command to chipset.   */
+		   Display(("HCI_Send_Raw_Command(%lu): Failure %d, %d.\r\n", baudrate, ret_val, Status));
 
-               ret_val = FUNCTION_ERROR;
-            }
-         }
-         else
-         {
-            ret_val = INVALID_PARAMETERS_ERROR;
-         }
-      }
-      else
-      {
-         ret_val = INVALID_PARAMETERS_ERROR;
-      }
+		   ret_val = FUNCTION_ERROR;
+		}
+	 }
+	 else
+	 {
+		ret_val = INVALID_PARAMETERS_ERROR;
+	 }
    }
    else
    {
