@@ -1,9 +1,6 @@
 #include <msp430f5438a.h>
 #include "i2c_lib.h"
 
-#define lib
-
-#ifdef lib
 unsigned char *PTxData;                     // Pointer to TX data
 unsigned char TXByteCtr;
 
@@ -11,7 +8,6 @@ unsigned char *PRxData;                     // Pointer to RX data
 unsigned char RXByteCtr;
 
 int err;
-
 
 
 void initi2c()
@@ -88,28 +84,6 @@ int geti2c(unsigned char addr, unsigned char RxData[], unsigned char len)		//Ass
 												// is RX'd
 		__no_operation();                       // Set breakpoint >>here<< and
 	}
-
-	/*
-	if( len == 1 )
-	{
-		RXByteCtr = 0;
-		__disable_interrupt();
-		UCB3CTL1 |= UCTXSTT;                      // I2C start condition
-		while(UCB3CTL1 & UCTXSTT);               // Start condition sent?
-		UCB3CTL1 |= UCTXSTP;                      // I2C stop condition
-		__enable_interrupt();
-	}
-	else
-	{
-		RXByteCtr = len;
-		UCB3CTL1 |= UCTXSTT;                      // I2C start condition
-	}
-
-	//__bis_SR_register(LPM0_bits + GIE);     // Enter LPM0, enable interrupts
-	                                        // Remain in LPM0 until all data is RX'd
-	__no_operation();                       // Set breakpoint >>here<< and read out the RxBuffer buffer
-
-	while (UCB3CTL1 & UCTXSTP);             // Ensure stop condition got sent*/
 	return err;
 }
 
@@ -136,23 +110,6 @@ __interrupt void USCI_B3_ISR(void)
 	  //__bic_SR_register_on_exit(LPM0_bits); // Exit active CPU
 	  break;
   case 10:                                  // Vector 10: RXIFG
-
-	  /*
-	  if(RXByteCtr == 1)
-		  UCB3CTL1 |= UCTXSTP;                    // I2C stop condition
-
-	  if ( RXByteCtr == 0 )
-	  {
-		  *PRxData = UCB3RXBUF;
-		  PRxData++;
-		  //__bic_SR_register_on_exit(LPM0_bits); // Exit LPM0
-	  }
-	  else
-	  {
-		  *PRxData = UCB3RXBUF;
-		  PRxData++;
-		  RXByteCtr--;
-	  }*/
 	  RXByteCtr--;                            // Decrement RX byte counter
 	  if (RXByteCtr)
 	  {
@@ -167,19 +124,6 @@ __interrupt void USCI_B3_ISR(void)
 	  }
     break;
   case 12:                                  // Vector 12: TXIFG
-	  /*
-	  if (TXByteCtr)                          // Check TX byte counter
-	  {
-		  UCB3TXBUF = *PTxData++;               // Load TX buffer
-		  TXByteCtr--;                          // Decrement TX byte counter
-	  }
-	  else
-	  {
-		  UCB3CTL1 |= UCTXSTP;                  // I2C stop condition
-		  //UCB3IFG &= ~UCTXIFG;                  // Clear USCI_B0 TX int flag
-		  //__bic_SR_register_on_exit(LPM0_bits); // Exit LPM0
-	  }
-	  */
 	  if (TXByteCtr)                          // Check TX byte counter
 	  {
 		UCB3TXBUF = *PTxData++;               // Load TX buffer
@@ -194,5 +138,3 @@ __interrupt void USCI_B3_ISR(void)
   default: break;
   }
 }
-
-#endif

@@ -129,6 +129,7 @@ int main(void)
 	/* Configure the hardware for its intended use.                      */
 	HAL_ConfigureHardware();
 
+	// init hardware for I2C and push buttons
 	initi2c();
 
 	P2DIR = 0;

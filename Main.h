@@ -35,11 +35,5 @@
    /* negative error code (of the form APPLICATION_ERROR_XXX).          */
 int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initialization_t *BTPS_Initialization);
 
-   /* The following function is used to process a command line string.  */
-   /* This function takes as it's only parameter the command line string*/
-   /* to be parsed and returns TRUE if a command was parsed and executed*/
-   /* or FALSE otherwise.                                               */
-Boolean_t ProcessCommandLine(char *String);
-
 #endif
 

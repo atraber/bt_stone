@@ -1,8 +1,9 @@
 
 #include "Main.h"                /* Application Interface Abstraction.        */
 #include "SS1BTPS.h"             /* Main SS1 Bluetooth Stack Header.          */
-#include "L2CAPServer.h"             /* Application Header.                       */
 #include "BTPSKRNL.h"            /* BTPS Kernel Header.                       */
+#include "L2CAPServer.h"             /* Application Header.                       */
+#include "BTAPITyp.h"
 
 
 #include "protocol.h"
@@ -518,6 +519,8 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 				/* added to the List Box.                             */
 				LOG_ERROR(("     Config Request: Function Error %d.\r\n", retval));
 			}
+
+			connectionOpened(BluetoothStackID, L2CA_Event_Data->Event_Data.L2CA_Connect_Indication->LCID);
 		}
 		else
 		{
@@ -537,10 +540,13 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 		{
 			LOG_ERROR(("L2CA_Disconnect_Indication failed: Error code %d", retval));
 		}
+
+		connectionClosed();
 		break;
 
 	case etDisconnect_Confirmation:
 		LOG_INFO(("L2CAP: Successfully disconnected\r\n"));
+
 		break;
 
 	case etConfig_Indication:
@@ -572,10 +578,10 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 	case etData_Indication:
 		LOG_INFO(("L2CAP: Received data, length %d\r\n", L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Data_Length));
 
-		protocol(L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Variable_Data,
-				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Data_Length,
+		protocol(BluetoothStackID,
 				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->CID,
-				BluetoothStackID);
+				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Variable_Data,
+				L2CA_Event_Data->Event_Data.L2CA_Data_Indication->Data_Length);
 
 		break;
 

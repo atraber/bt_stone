@@ -7,9 +7,6 @@
 #include "L2CAPServer.h"         /* Application Header.                       */
 #include "BTPSKRNL.h"            /* BTPS Kernel Header.                       */
 
-   /* The following is used as a printf replacement.                    */
-#define Display(_x)                 do { BTPS_OutputMessage _x; } while(0)
-
 #include "i2c_lib.h"
 
 typedef unsigned char uint8_t;
@@ -20,13 +17,13 @@ int type;
 int len;
 int seq;
 int ownseq = 0;
-Word_t local_cid = 0;
+Word_t g_LCID = 0;
 unsigned int g_BluetoothStackID;
 
 // variables used temporary but initialized only once
 unsigned char packet[50];
 
-int l2cap_send(Word_t LCID, uint8_t *data, uint16_t len);
+int l2cap_send(unsigned int BluetoothStackID, Word_t LCID, uint8_t *data, uint16_t len);
 
 
 void send_bt_request(unsigned char payload[], int paylen)
@@ -39,7 +36,7 @@ void send_bt_request(unsigned char payload[], int paylen)
 	//send packet
 
 	// actually send the packet
-	l2cap_send(local_cid, packet, paylen+3);
+	l2cap_send(g_BluetoothStackID, g_LCID, packet, paylen+3);
 
 	//update ownseq
 	ownseq = (ownseq + 1) % 0xFF;
@@ -55,7 +52,7 @@ void send_bt_response(unsigned char payload[], int paylen)
 	//send packet
 
 	// actually send the packet
-	l2cap_send(local_cid, packet, paylen+3);
+	l2cap_send(g_BluetoothStackID, g_LCID, packet, paylen+3);
 
 	//update ownseq
 	ownseq = (ownseq + 1) % 0xFF;
@@ -89,7 +86,7 @@ void i2c_write(unsigned char addr, unsigned char command[], int size)		//to corr
 
 	//generate rest of answer
 	package[0] = addr;
-	memcpy(&package[2], &command[1], txlen); 		// int i; for (i=0;i<txlen;i++) package[i+2] = command[1+i];
+	memcpy(&package[2], &command[1], txlen);
 	//send answer
 	send_bt_response(package, txlen+2);
 }
@@ -111,10 +108,10 @@ void i2c_read(unsigned char addr, unsigned char payload[], int size)
 		package[1] = rxlen | 0x40;		//sendi2c failed
 	//generate answer
 	size = 2 + rxlen + txlen;
-	//unsigned char package[] = {((000 << 5) + len), packet[1], rxlen, txdata, rxdata} //how to put in data arrays???
+
 	package[0] =  (addr | 128);
-	memcpy(&package[2], &payload[1],txlen);		//int i; for (i=0;i<txlen;i++) package[i+2] = payload[1+i];
-	memcpy(&package[2+txlen], rxdata, rxlen);		//for (i=0;i<rxlen;i++) package[i+2+txlen] = rxdata[i];
+	memcpy(&package[2], &payload[1],txlen);
+	memcpy(&package[2+txlen], rxdata, rxlen);
 	//send answer
 	send_bt_response(package, size);
 }
@@ -155,11 +152,8 @@ void gpio_request(unsigned char payload[])
 	gpio_send(1, P2IN);
 }
 
-void protocol(unsigned char packet[], unsigned int size, Word_t LCID, unsigned int BluetoothStackID)
+void protocol(unsigned int BluetoothStackID, Word_t LCID, unsigned char packet[], unsigned int size)
 {
-	local_cid = LCID;
-	g_BluetoothStackID = BluetoothStackID;
-
 	get_header(packet);
 
 	switch (type)
@@ -188,34 +182,48 @@ void send_port2_status(int port_stat)
 //value of port2 input
 unsigned int port2_status;
 
-int port2_poll()
+void port2_poll()
 {
 	if((P2IN & 0x0F) != port2_status)
 	{
 		// only check first 4 bits, ignore rest
 		port2_status = P2IN & 0x0F;
-		Display(("status sent\r\n"));
-		send_port2_status(port2_status);
-	}
 
-	return 0;
+		if(g_LCID != 0)
+		{
+			LOG_INFO(("Send port status\r\n"));
+			send_port2_status(port2_status);
+		}
+	}
 }
 
 
 
 
-int l2cap_send(Word_t LCID, uint8_t *data, uint16_t len)
+int l2cap_send(unsigned int BluetoothStackID, Word_t LCID, uint8_t *data, uint16_t len)
 {
-	int retval = L2CA_Data_Write(g_BluetoothStackID,
+	int retval = L2CA_Data_Write(BluetoothStackID,
 					LCID,
 					len,
 					data);
 
 	if(retval)
 	{
-		Display(("Error %d occurred on Line %d, File %s\r\n", retval, __LINE__, __FILE__));
+		LOG_ERROR(("L2CA_Data_Write failed: error code %d\r\n", retval));
+
+		return 0;
 	}
 
 	return 1;
 }
 
+void connectionOpened(unsigned int BluetoothStackID, Word_t LCID)
+{
+	g_BluetoothStackID = BluetoothStackID;
+	g_LCID = LCID;
+}
+
+void connectionClosed()
+{
+	g_LCID = 0;
+}
