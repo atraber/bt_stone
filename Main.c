@@ -16,7 +16,7 @@
 #include "Main.h"                /* Main application header.                  */
 #include "EHCILL.h"              /* eHCILL Implementation Header.             */
 
-#include "i2c_lib.h"
+#include "I2C.h"
 #include "protocol.h"
 
    /* The following parameters are used when configuring HCILL Mode.    */
@@ -130,7 +130,7 @@ int main(void)
 	HAL_ConfigureHardware();
 
 	// init hardware for I2C and push buttons
-	initi2c();
+	I2C_init();
 
 	P2DIR = 0;
 	P2REN = BIT0 + BIT1 + BIT2 + BIT3;

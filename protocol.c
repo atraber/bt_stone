@@ -7,7 +7,7 @@
 #include "L2CAPServer.h"         /* Application Header.                       */
 #include "BTPSKRNL.h"            /* BTPS Kernel Header.                       */
 
-#include "i2c_lib.h"
+#include "I2C.h"
 
 typedef unsigned char uint8_t;
 typedef unsigned short uint16_t;
@@ -79,7 +79,7 @@ void i2c_write(unsigned char addr, unsigned char command[], int size)		//to corr
 	unsigned char package[256];
 	int txlen = size-1;
 
-	if(sendi2c(addr, &command[1], txlen))	//if return true, an error occured
+	if(I2C_write(addr, &command[1], txlen))	//if return true, an error occured
 		package[1] = 0x40;
 	else
 		package[1] = 0;
@@ -97,9 +97,9 @@ void i2c_read(unsigned char addr, unsigned char payload[], int size)
 	unsigned char rxdata[16];
 	unsigned char rxlen = payload[0] & 31;
 	int txlen = size-1;
-	if(!sendi2c(addr, &payload[1], txlen))	//if sendi2c does not fail go on with get
+	if(!I2C_write(addr, &payload[1], txlen))	//if sendi2c does not fail go on with get
 	{
-		if(geti2c(addr, rxdata, rxlen))		//set error bit if geti2c fails
+		if(I2C_read(addr, rxdata, rxlen))		//set error bit if geti2c fails
 			package[1] = rxlen | 0x40;
 		else
 			package[1] = rxlen;
