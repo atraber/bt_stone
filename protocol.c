@@ -197,6 +197,17 @@ void port2_poll()
 	}
 }
 
+#pragma vector = PORT2_VECTOR
+__interrupt void PORT2_ISR(void)
+{
+	// this is used to wake MSP from low power mode if necessary
+	LPM3_EXIT;
+
+	P2IES = P2IN;
+
+	P2IFG = 0;
+}
+
 
 
 

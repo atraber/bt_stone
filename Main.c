@@ -136,6 +136,10 @@ int main(void)
 	P2REN = BIT0 + BIT1 + BIT2 + BIT3;
 	P2OUT = BIT0 + BIT1 + BIT2 + BIT3;
 
+	// enable interrupts to wake MSP from low power mode if necessary
+	P2IE = BIT0 + BIT1 + BIT2 + BIT3;
+	P2IES = P2IN;
+
 	/* Enable interrupts and call the main application thread.           */
 	__enable_interrupt();
 	MainThread();
