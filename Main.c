@@ -18,6 +18,7 @@
 
 #include "I2C.h"
 #include "protocol.h"
+#include "L2CAPServer.h"
 
    /* The following parameters are used when configuring HCILL Mode.    */
 #define HCILL_MODE_INACTIVITY_TIMEOUT              (500)
@@ -144,10 +145,16 @@ int main(void)
 	__enable_interrupt();
 	MainThread();
 
+	LOG_ERROR(("Something went wrong, initiating software POR\r\n"));
+
 	/* MainThread should run continously, if it exits an error occured.  */
-	while(1)
+	int i;
+	for(i = 0; i < 40; i++)
 	{
 		HAL_LedToggle(0);
 		BTPS_Delay(100);
 	}
+
+	// do a software POR reset
+	PMMCTL0 = PMMPW + PMMSWPOR + (PMMCTL0 & 0x0003);
 }
