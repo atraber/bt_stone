@@ -11,6 +11,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#define LOCAL_NAME		"Stone BT"
+
 
 #define MAX_SUPPORTED_LINK_KEYS                    (1)   /* Max supported Link*/
                                                          /* keys.             */
@@ -90,7 +92,6 @@ static BTPSCONST char *HCIVersionStrings[] =
 
    /* Internal function prototypes.                                     */
 static void BD_ADDRToStr(BD_ADDR_t Board_Address, BoardStr_t BoardStr);
-static void DisplayFunctionError(char *Function,int Status);
 
 static int OpenStack(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initialization_t *BTPS_Initialization);
 static int CloseStack(void);
@@ -104,6 +105,7 @@ static int SetBaudRate(SDWord_t baudrate);
 
    /* BTPS Callback function prototypes.                                */
 static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Event_Data_t *L2CA_Event_Data, unsigned long CallbackParameter);
+static void BTPSAPI GAP_LE_Event_Callback(unsigned int BluetoothStackID, GAP_LE_Event_Data_t *GAP_LE_Event_Data, unsigned long CallbackParameter);
 
    /* The following function is responsible for converting data of type */
    /* BD_ADDR to a string.  The first parameter of this function is the */
@@ -113,12 +115,6 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 static void BD_ADDRToStr(BD_ADDR_t Board_Address, BoardStr_t BoardStr)
 {
    BTPS_SprintF((char *)BoardStr, "0x%02X%02X%02X%02X%02X%02X", Board_Address.BD_ADDR5, Board_Address.BD_ADDR4, Board_Address.BD_ADDR3, Board_Address.BD_ADDR2, Board_Address.BD_ADDR1, Board_Address.BD_ADDR0);
-}
-
-   /* Displays a function error.                                        */
-static void DisplayFunctionError(char *Function, int Status)
-{
-   Display(("\n%s Failed: %d.\r\n", Function, Status));
 }
 
    /* The following function is responsible for opening the SS1         */
@@ -194,7 +190,7 @@ static int OpenStack(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_Initia
             /* The Stack was NOT initialized successfully, inform the   */
             /* user and set the return value of the initialization      */
             /* function to an error.                                    */
-            DisplayFunctionError("Stack Init", Result);
+            LOG_ERROR(("Stack Init failed with error code %d\r\n", Result));
 
             BluetoothStackID = 0;
 
@@ -269,7 +265,7 @@ static int SetDiscoverable(void)
 		{
 			/* An error occurred while trying to set the Discoverability   */
 			/* Mode of the Device.                                         */
-			DisplayFunctionError("Set Discoverable Mode", ret_val);
+			LOG_ERROR(("Set Discoverable Mode failed with error code %d\r\n", ret_val));
 		}
 	}
 	else
@@ -304,7 +300,7 @@ static int SetConnect(void)
 		{
 			/* An error occurred while trying to make the Device           */
 			/* Connectable.                                                */
-			DisplayFunctionError("Set Connectability Mode", ret_val);
+			LOG_ERROR(("Set Connectability Mode failed with error code %d\r\n", ret_val));
 		}
 	}
 	else
@@ -384,7 +380,7 @@ static int SetLocalName(char* name)
 		{
 			/* Display a message indicating that an error occured while */
 			/* attempting to set the local Device Name.                 */
-			DisplayFunctionError("GAP_Set_Local_Device_Name", Result);
+			LOG_ERROR(("GAP_Set_Local_Device_Name failed with error code %d\r\n", Result));
 
 			ret_val = FUNCTION_ERROR;
 		}
@@ -474,6 +470,115 @@ static int SetBaudRate(SDWord_t baudrate)
 
    return(ret_val);
 }
+
+
+#ifdef __SUPPORT_LOW_ENERGY__
+/* The following function is responsible for enabling LE             */
+/* Advertisements.  This function returns zero on successful         */
+/* execution and a negative value on all errors.                     */
+static int AdvertiseLE()
+	{
+	int                                 ret_val;
+	int                                 Length;
+	GAP_LE_Advertising_Parameters_t     AdvertisingParameters;
+	GAP_LE_Connectability_Parameters_t  ConnectabilityParameters;
+	union
+	{
+		Advertising_Data_t               AdvertisingData;
+		Scan_Response_Data_t             ScanResponseData;
+	} Advertisement_Data_Buffer;
+
+	/* First, check that valid Bluetooth Stack ID exists.                */
+	if(BluetoothStackID)
+	{
+		/* Enable Advertising.  Set the Advertising Data.                 */
+		BTPS_MemInitialize(&(Advertisement_Data_Buffer.AdvertisingData), 0, sizeof(Advertising_Data_t));
+
+		/* Set the Flags A/D Field (1 byte type and 1 byte Flags.         */
+		Advertisement_Data_Buffer.AdvertisingData.Advertising_Data[0] = 2;
+		Advertisement_Data_Buffer.AdvertisingData.Advertising_Data[1] = HCI_LE_ADVERTISING_REPORT_DATA_TYPE_FLAGS;
+		Advertisement_Data_Buffer.AdvertisingData.Advertising_Data[2] = 0;
+
+		/* Configure the flags field based on the Discoverability Mode.   */
+		Advertisement_Data_Buffer.AdvertisingData.Advertising_Data[2] = HCI_LE_ADVERTISING_FLAGS_GENERAL_DISCOVERABLE_MODE_FLAGS_BIT_MASK;
+
+		/* Write thee advertising data to the chip.                       */
+		ret_val = GAP_LE_Set_Advertising_Data(BluetoothStackID, (Advertisement_Data_Buffer.AdvertisingData.Advertising_Data[0] + 1), &(Advertisement_Data_Buffer.AdvertisingData));
+		if(!ret_val)
+		{
+			BTPS_MemInitialize(&(Advertisement_Data_Buffer.ScanResponseData), 0, sizeof(Scan_Response_Data_t));
+
+			/* Set the Scan Response Data.                                 */
+			Length = BTPS_StringLength(LOCAL_NAME);
+			if(Length < (ADVERTISING_DATA_MAXIMUM_SIZE - 2))
+			{
+				Advertisement_Data_Buffer.ScanResponseData.Scan_Response_Data[1] = HCI_LE_ADVERTISING_REPORT_DATA_TYPE_LOCAL_NAME_COMPLETE;
+			}
+			else
+			{
+				Advertisement_Data_Buffer.ScanResponseData.Scan_Response_Data[1] = HCI_LE_ADVERTISING_REPORT_DATA_TYPE_LOCAL_NAME_SHORTENED;
+				Length = (ADVERTISING_DATA_MAXIMUM_SIZE - 2);
+			}
+
+			Advertisement_Data_Buffer.ScanResponseData.Scan_Response_Data[0] = (Byte_t)(1 + Length);
+			BTPS_MemCopy(&(Advertisement_Data_Buffer.ScanResponseData.Scan_Response_Data[2]), LOCAL_NAME, Length);
+
+			ret_val = GAP_LE_Set_Scan_Response_Data(BluetoothStackID, (Advertisement_Data_Buffer.ScanResponseData.Scan_Response_Data[0] + 1), &(Advertisement_Data_Buffer.ScanResponseData));
+			if(!ret_val)
+			{
+				/* Set up the advertising parameters.                       */
+				AdvertisingParameters.Advertising_Channel_Map   = HCI_LE_ADVERTISING_CHANNEL_MAP_DEFAULT;
+				AdvertisingParameters.Scan_Request_Filter       = fpNoFilter;
+				AdvertisingParameters.Connect_Request_Filter    = fpNoFilter;
+				AdvertisingParameters.Advertising_Interval_Min  = 100;
+				AdvertisingParameters.Advertising_Interval_Max  = 200;
+
+				/* Configure the Connectability Parameters.                 */
+				/* * NOTE * Since we do not ever put ourselves to be direct */
+				/*          connectable then we will set the DirectAddress  */
+				/*          to all 0s.                                      */
+				ConnectabilityParameters.Connectability_Mode   = lcmConnectable;
+				ConnectabilityParameters.Own_Address_Type      = latPublic;
+				ConnectabilityParameters.Direct_Address_Type   = latPublic;
+				ASSIGN_BD_ADDR(ConnectabilityParameters.Direct_Address, 0, 0, 0, 0, 0, 0);
+
+				/* Now enable advertising.                                  */
+				ret_val = GAP_LE_Advertising_Enable(BluetoothStackID, TRUE, &AdvertisingParameters, &ConnectabilityParameters, GAP_LE_Event_Callback, 0);
+				if(!ret_val)
+				{
+					LOG_ERROR(("GAP_LE_Advertising_Enable success.\r\n"));
+				}
+				else
+				{
+					LOG_ERROR(("GAP_LE_Advertising_Enable returned %d.\r\n", ret_val));
+
+					ret_val = FUNCTION_ERROR;
+				}
+			}
+			else
+			{
+				LOG_ERROR(("GAP_LE_Set_Advertising_Data(dtScanResponse) returned %d.\r\n", ret_val));
+
+				ret_val = FUNCTION_ERROR;
+			}
+
+		}
+		else
+		{
+			LOG_ERROR(("GAP_LE_Set_Advertising_Data(dtAdvertising) returned %d.\r\n", ret_val));
+
+			ret_val = FUNCTION_ERROR;
+		}
+	}
+	else
+	{
+		/* No valid Bluetooth Stack ID exists.                            */
+		ret_val = INVALID_STACK_ID_ERROR;
+	}
+
+	return ret_val;
+}
+#endif
 
 /*********************************************************************/
 /*                         Event Callbacks                           */
@@ -590,11 +695,55 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 		LOG_DEBUG(("L2CAP: Timeout\r\n"));
 		break;
 
+	case etConnection_Parameter_Update_Indication:
+		LOG_DEBUG(("etConnection_Parameter_Update_Indication\r\n"));
+		break;
+
+	case etConnection_Parameter_Update_Confirmation:
+		LOG_DEBUG(("etConnection_Parameter_Update_Confirmation\r\n"));
+		break;
+
+	case etFixed_Channel_Connect_Indication:
+		LOG_DEBUG(("etFixed_Channel_Connect_Indication\r\n"));
+		break;
+
+	case etFixed_Channel_Disconnect_Indication:
+		LOG_DEBUG(("etFixed_Channel_Disconnect_Indication\r\n"));
+		break;
+
+	case etFixed_Channel_Data_Indication:
+		LOG_DEBUG(("etFixed_Channel_Data_Indication\r\n"));
+		break;
+
 	default:
 		LOG_DEBUG(("L2CAP: Received some event which we do not handle\r\n"));
 		break;
 	}
 }
+
+#ifdef __SUPPORT_LOW_ENERGY__
+static void BTPSAPI GAP_LE_Event_Callback(unsigned int BluetoothStackID, GAP_LE_Event_Data_t *GAP_LE_Event_Data, unsigned long CallbackParameter)
+{
+   /* Verify that all parameters to this callback are Semi-Valid.       */
+   if((BluetoothStackID) && (GAP_LE_Event_Data))
+   {
+      switch(GAP_LE_Event_Data->Event_Data_Type)
+      {
+         case etLE_Connection_Complete:
+            Display(("etLE_Connection_Complete with size %d.\r\n",(int)GAP_LE_Event_Data->Event_Data_Size));
+            break;
+         case etLE_Disconnection_Complete:
+            Display(("etLE_Disconnection_Complete with size %d.\r\n", (int)GAP_LE_Event_Data->Event_Data_Size));
+
+            AdvertiseLE();
+            break;
+         case etLE_Authentication:
+            Display(("etLE_Authentication with size %d.\r\n", (int)GAP_LE_Event_Data->Event_Data_Size));
+            break;
+      }
+   }
+}
+#endif
 
    /* The following function is used to initialize the application      */
    /* instance.  This function should open the stack and prepare to     */
@@ -632,21 +781,33 @@ int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_I
 				/* Discoverable.                                            */
 				if(!ret_val)
 				{
-					SetLocalName("Stone BT");
+					SetLocalName(LOCAL_NAME);
+
+
 
 					// NOW WE SHOULD INITIALIZE ALL L2CAP STUFF
-					L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
+#ifndef __SUPPORT_LOW_ENERGY__
+					ret_val = L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
+					if(ret_val < 0)
+						LOG_ERROR(("L2CA_Register_PSM failed: Error code %d\r\n", ret_val));
+#else
+					AdvertiseLE();
+
+					ret_val = L2CA_Register_Fixed_Channel(BluetoothStackID, 0x0004, NULL, L2CAP_Event_Callback, (unsigned long)NULL);
+					if(ret_val < 0)
+						LOG_ERROR(("L2CA_Register_Fixed_Channel failed with error code %d\r\n", ret_val));
+#endif
 
 					/* Return success to the caller.                   */
 					ret_val = (int)BluetoothStackID;
 				}
 				else
-					DisplayFunctionError("SetDisc", ret_val);
+					LOG_ERROR(("SetDiscoverable() failed with error code %d\r\n", ret_val));
 			}
 			else
-				DisplayFunctionError("SetDisc", ret_val);
+				LOG_ERROR(("SetConnect() failed with error code %d\r\n", ret_val));
 
-			/* In some error occurred then close the stack.                */
+			/* If some error occurred then close the stack.                */
 			if(ret_val < 0)
 			{
 				/* Close the Bluetooth Stack.                               */
@@ -656,7 +817,7 @@ int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_I
 		else
 		{
 			/* There was an error while attempting to open the Stack.      */
-			Display(("Unable to open the stack.\r\n"));
+			LOG_ERROR(("Unable to open the stack.\r\n"));
 		}
 	}
 	else
