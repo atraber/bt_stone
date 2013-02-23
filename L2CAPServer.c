@@ -514,9 +514,6 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 			retval = L2CA_Config_Request(BluetoothStackID, L2CA_Event_Data->Event_Data.L2CA_Connect_Indication->LCID, L2CAP_LINK_TIMEOUT_MAXIMUM_VALUE, &ConfigRequest);
 			if(retval)
 			{
-				/* Config Request Error, so let's issue an error to   */
-				/* the user and Delete the CID that we have already   */
-				/* added to the List Box.                             */
 				LOG_ERROR(("     Config Request: Function Error %d.\r\n", retval));
 			}
 
