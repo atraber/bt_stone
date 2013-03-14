@@ -721,30 +721,6 @@ static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Eve
 	}
 }
 
-#ifdef __SUPPORT_LOW_ENERGY__
-static void BTPSAPI GAP_LE_Event_Callback(unsigned int BluetoothStackID, GAP_LE_Event_Data_t *GAP_LE_Event_Data, unsigned long CallbackParameter)
-{
-   /* Verify that all parameters to this callback are Semi-Valid.       */
-   if((BluetoothStackID) && (GAP_LE_Event_Data))
-   {
-      switch(GAP_LE_Event_Data->Event_Data_Type)
-      {
-         case etLE_Connection_Complete:
-            Display(("etLE_Connection_Complete with size %d.\r\n",(int)GAP_LE_Event_Data->Event_Data_Size));
-            break;
-         case etLE_Disconnection_Complete:
-            Display(("etLE_Disconnection_Complete with size %d.\r\n", (int)GAP_LE_Event_Data->Event_Data_Size));
-
-            AdvertiseLE();
-            break;
-         case etLE_Authentication:
-            Display(("etLE_Authentication with size %d.\r\n", (int)GAP_LE_Event_Data->Event_Data_Size));
-            break;
-      }
-   }
-}
-#endif
-
    /* The following function is used to initialize the application      */
    /* instance.  This function should open the stack and prepare to     */
    /* execute commands based on user input.  The first parameter passed */
@@ -786,17 +762,9 @@ int InitializeApplication(HCI_DriverInformation_t *HCI_DriverInformation, BTPS_I
 
 
 					// NOW WE SHOULD INITIALIZE ALL L2CAP STUFF
-#ifndef __SUPPORT_LOW_ENERGY__
 					ret_val = L2CA_Register_PSM(BluetoothStackID, 0x1001, L2CAP_Event_Callback, (unsigned long)NULL);
 					if(ret_val < 0)
 						LOG_ERROR(("L2CA_Register_PSM failed: Error code %d\r\n", ret_val));
-#else
-					AdvertiseLE();
-
-					ret_val = L2CA_Register_Fixed_Channel(BluetoothStackID, 0x0004, NULL, L2CAP_Event_Callback, (unsigned long)NULL);
-					if(ret_val < 0)
-						LOG_ERROR(("L2CA_Register_Fixed_Channel failed with error code %d\r\n", ret_val));
-#endif
 
 					/* Return success to the caller.                   */
 					ret_val = (int)BluetoothStackID;
