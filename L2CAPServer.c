@@ -105,7 +105,6 @@ static int SetBaudRate(SDWord_t baudrate);
 
    /* BTPS Callback function prototypes.                                */
 static void BTPSAPI L2CAP_Event_Callback(unsigned int BluetoothStackID, L2CA_Event_Data_t *L2CA_Event_Data, unsigned long CallbackParameter);
-static void BTPSAPI GAP_LE_Event_Callback(unsigned int BluetoothStackID, GAP_LE_Event_Data_t *GAP_LE_Event_Data, unsigned long CallbackParameter);
 
    /* The following function is responsible for converting data of type */
    /* BD_ADDR to a string.  The first parameter of this function is the */
